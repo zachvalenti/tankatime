@@ -1,0 +1,79 @@
+name: TankaTime
+options:
+  bundleIdPrefix: com.tankatime
+
+packages:
+  TankaTimeCore:
+    path: Packages/TankaTimeCore
+
+targets:
+  TankaTime-iOS:
+    type: application
+    platform: iOS
+    deploymentTarget: "16.0"
+    sources:
+      - path: App/Sources/TankaTime
+    dependencies:
+      - package: TankaTimeCore
+    info:
+      properties:
+        CFBundleDisplayName: TankaTime
+        UILaunchScreen: {}
+        UISupportsDocumentBrowser: true
+        LSSupportsOpeningDocumentsInPlace: true
+        UIFileSharingEnabled: true
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.tankatime.app
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        SWIFT_VERSION: "5.9"
+        TARGETED_DEVICE_FAMILY: "1,2"
+
+  TankaTime-macOS:
+    type: application
+    platform: macOS
+    deploymentTarget: "13.0"
+    sources:
+      - path: App/Sources/TankaTime
+    dependencies:
+      - package: TankaTimeCore
+    info:
+      properties:
+        CFBundleDisplayName: TankaTime
+        LSApplicationCategoryType: public.app-category.productivity
+        NSHumanReadableCopyright: ""
+    entitlements:
+      path: App/Resources/TankaTime-macOS.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+        com.apple.security.files.user-selected.read-write: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.tankatime.app
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        SWIFT_VERSION: "5.9"
+
+schemes:
+  TankaTime-iOS:
+    build:
+      targets:
+        TankaTime-iOS: all
+    run:
+      config: Debug
+  TankaTime-macOS:
+    build:
+      targets:
+        TankaTime-macOS: all
+    run:
+      config: Debug
