@@ -1,4 +1,4 @@
-const CACHE = 'tanka-time-v12';
+const CACHE = 'tanka-time-v13';
 const ASSETS = [
   './',
   'index.html',
