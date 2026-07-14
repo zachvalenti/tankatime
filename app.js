@@ -202,6 +202,12 @@ exportBtn.addEventListener('click', () => {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 });
 
+// a soft tick where the platform allows it (Android Chrome; iOS Safari
+// exposes no vibration API to web pages)
+function buzz(pattern) {
+  try { navigator.vibrate?.(pattern); } catch (_) {}
+}
+
 // clearing is destructive, so the button only fires after an
 // unbroken five-second hold; releasing early cancels
 const HOLD_MS = 5000;
@@ -219,6 +225,7 @@ function startHold() {
     refresh();
     save();
     editor.focus();
+    buzz([40, 60, 40]);
   }, HOLD_MS);
 }
 
@@ -231,7 +238,7 @@ function cancelHold() {
 }
 
 clearBtn.addEventListener('pointerdown', e => {
-  clearBtn.setPointerCapture(e.pointerId);
+  try { clearBtn.setPointerCapture(e.pointerId); } catch (_) {}
   startHold();
 });
 clearBtn.addEventListener('pointerup', cancelHold);
@@ -260,9 +267,11 @@ themeBtn.addEventListener('click', () => {
   applyTheme(names[(cur + 1) % names.length]);
 });
 
-// keep the caret where it is when a toolbar button is clicked
+// keep the caret where it is when a toolbar button is clicked,
+// and acknowledge every press with a tick where haptics exist
 for (const btn of [clearBtn, exportBtn, themeBtn, fsBtn]) {
   btn.addEventListener('mousedown', e => e.preventDefault());
+  btn.addEventListener('pointerdown', () => buzz(10));
 }
 
 let resizeTimer = 0;
@@ -282,5 +291,13 @@ editor.focus();
 document.fonts?.ready.then(refresh);
 
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+  // when an updated worker takes over, reload once so the new version
+  // shows on the first visit instead of the second (draft is in
+  // localStorage, so nothing is lost)
+  const hadController = !!navigator.serviceWorker.controller;
+  let reloaded = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (hadController && !reloaded) { reloaded = true; save(); location.reload(); }
+  });
   addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
 }
