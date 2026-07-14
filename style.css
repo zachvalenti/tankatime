@@ -151,7 +151,7 @@ body {
 .flood {
   position: fixed;
   inset: 0;
-  transform: translateY(calc(100% + 16px)); /* tuck the waves away too */
+  transform: translateY(calc(100% + 48px)); /* tuck the waves away too */
   transition: transform .7s cubic-bezier(.55, .06, .8, .5);
   pointer-events: none;
 }
@@ -161,44 +161,44 @@ body {
   transition: transform 3s linear;
 }
 
-/* the water is one translucent body whose scalloped surface is cut by a
-   mask, so the whole surface can slosh — crests rise and fall as they
-   drift — without separating from the fill below */
+/* the water is one translucent body whose surface is cut by a mask.
+   The surface tile is 900px of hand-drawn coastline — three crests of
+   different heights and widths and two unequal troughs — so a phone
+   sees well under one tile and no crest visibly repeats */
 .flood::before {
   content: "";
   position: absolute;
-  inset: -7px -120px -16px 0;
+  inset: -28px 0 -20px 0;
   background: var(--flood);
-  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 7'%3E%3Cpath d='M0 3.5 Q10 .5 20 3.5 T40 3.5 V7 H0 Z'/%3E%3C/svg%3E") 0 0/40px 7px repeat-x,
-                linear-gradient(#000, #000) 0 7px/100% calc(100% - 7px) no-repeat;
-  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 7'%3E%3Cpath d='M0 3.5 Q10 .5 20 3.5 T40 3.5 V7 H0 Z'/%3E%3C/svg%3E") 0 0/40px 7px repeat-x,
-        linear-gradient(#000, #000) 0 7px/100% calc(100% - 7px) no-repeat;
-  animation: slosh 5.2s ease-in-out infinite paused,
-             chop 2.6s linear infinite paused;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 900 28'%3E%3Cpath d='M0 14 C50 14 75 3 145 3 C215 3 245 25 320 25 C385 25 405 9 470 9 C535 9 555 21 625 21 C680 21 705 1 775 4 C830 6.5 870 14 900 14 V28 H0 Z'/%3E%3C/svg%3E") 0 0/900px 28px repeat-x,
+                linear-gradient(#000, #000) 0 28px/100% calc(100% - 28px) no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 900 28'%3E%3Cpath d='M0 14 C50 14 75 3 145 3 C215 3 245 25 320 25 C385 25 405 9 470 9 C535 9 555 21 625 21 C680 21 705 1 775 4 C830 6.5 870 14 900 14 V28 H0 Z'/%3E%3C/svg%3E") 0 0/900px 28px repeat-x,
+        linear-gradient(#000, #000) 0 28px/100% calc(100% - 28px) no-repeat;
+  animation: slosh 6.8s ease-in-out infinite paused,
+             chop 20s linear infinite paused;
 }
 
 .flood.rise::before { animation-play-state: running; }
 
-/* the swell: an uneven surge — two wavelengths per loop, jittery
-   rise and fall, never quite the same beat twice in a row */
+/* the swell: the whole surface heaves on an uneven beat */
 @keyframes slosh {
-  0%   { transform: translate(0, 0); }
-  13%  { transform: translate(-9px, -4px); }
-  27%  { transform: translate(-22px, 1px); }
-  38%  { transform: translate(-30px, -2px); }
-  52%  { transform: translate(-42px, 4px); }
-  64%  { transform: translate(-51px, -3px); }
-  78%  { transform: translate(-63px, 2px); }
-  89%  { transform: translate(-72px, -1px); }
-  100% { transform: translate(-80px, 0); }
+  0%   { transform: translateY(0); }
+  14%  { transform: translateY(-12px); }
+  27%  { transform: translateY(-4px); }
+  41%  { transform: translateY(-11px); }
+  56%  { transform: translateY(3px); }
+  70%  { transform: translateY(10px); }
+  82%  { transform: translateY(-2px); }
+  92%  { transform: translateY(7px); }
+  100% { transform: translateY(0); }
 }
 
-/* the chop: crests slide against the drift, so the two motions
-   interfere instead of rolling in lockstep */
+/* the drift: the crest pattern travels one full tile per loop,
+   independent of the heave */
 @keyframes chop {
   to {
-    -webkit-mask-position: 40px 0, 0 7px;
-    mask-position: 40px 0, 0 7px;
+    -webkit-mask-position: -900px 0, 0 28px;
+    mask-position: -900px 0, 0 28px;
   }
 }
 
