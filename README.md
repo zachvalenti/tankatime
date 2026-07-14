@@ -1,7 +1,6 @@
 # Tanka Time
 
-A quiet room for tanka. WriteRoom-style full-screen writing — green ink on
-black — with a syllable count in the margin beside every line.
+A quiet room for tanka. WriteRoom inspired full-screen writing with a syllable count in the margin beside every line.
 
 - Counts follow the tanka form: lines that hit their 5-7-5-7-7 target glow
   green; lines that run over turn amber.
