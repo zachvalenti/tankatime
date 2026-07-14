@@ -8,6 +8,7 @@ const totalEl = document.getElementById('total');
 const fsBtn   = document.getElementById('fs');
 const exportBtn = document.getElementById('export');
 const themeBtn  = document.getElementById('theme');
+const clearBtn  = document.getElementById('clear');
 
 const TARGETS = [5, 7, 5, 7, 7];
 const STORE_KEY = 'tanka-time-doc';
@@ -200,6 +201,48 @@ exportBtn.addEventListener('click', () => {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 });
 
+// clearing is destructive, so the button only fires after an
+// unbroken five-second hold; releasing early cancels
+const HOLD_MS = 5000;
+let holdTimer = 0;
+
+function startHold() {
+  if (holdTimer || !getText().trim()) return;
+  clearBtn.classList.add('holding');
+  holdTimer = setTimeout(() => {
+    holdTimer = 0;
+    clearBtn.classList.remove('holding');
+    setText('');
+    refresh();
+    save();
+    editor.focus();
+  }, HOLD_MS);
+}
+
+function cancelHold() {
+  if (!holdTimer) return;
+  clearTimeout(holdTimer);
+  holdTimer = 0;
+  clearBtn.classList.remove('holding');
+}
+
+clearBtn.addEventListener('pointerdown', e => {
+  clearBtn.setPointerCapture(e.pointerId);
+  startHold();
+});
+clearBtn.addEventListener('pointerup', cancelHold);
+clearBtn.addEventListener('pointercancel', cancelHold);
+// a five-second press is a long-press to the browser; keep its menu away
+clearBtn.addEventListener('contextmenu', e => e.preventDefault());
+
+clearBtn.addEventListener('keydown', e => {
+  if (e.repeat || (e.key !== ' ' && e.key !== 'Enter')) return;
+  e.preventDefault();
+  startHold();
+});
+clearBtn.addEventListener('keyup', cancelHold);
+clearBtn.addEventListener('blur', cancelHold);
+
 function applyTheme(name) {
   if (name === 'room') delete document.documentElement.dataset.theme;
   else document.documentElement.dataset.theme = name;
@@ -214,7 +257,7 @@ themeBtn.addEventListener('click', () => {
 });
 
 // keep the caret where it is when a toolbar button is clicked
-for (const btn of [exportBtn, themeBtn, fsBtn]) {
+for (const btn of [clearBtn, exportBtn, themeBtn, fsBtn]) {
   btn.addEventListener('mousedown', e => e.preventDefault());
 }
 

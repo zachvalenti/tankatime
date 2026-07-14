@@ -131,6 +131,33 @@ body {
 
 .tool:hover { color: var(--ink); opacity: 1; }
 
+.clear {
+  position: relative;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* hold progress: a line that takes the full five seconds to cross */
+.clear::after {
+  content: "";
+  position: absolute;
+  left: .45rem;
+  right: .45rem;
+  bottom: .05rem;
+  height: 1px;
+  background: var(--over);
+  transform: scaleX(0);
+  transform-origin: left;
+}
+
+.clear.holding { color: var(--over); opacity: 1; }
+.clear.holding::after {
+  transform: scaleX(1);
+  transition: transform 5s linear;
+}
+
 .fs { font-size: 1.05rem; }
 
 @media (display-mode: standalone), (display-mode: fullscreen) {
