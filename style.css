@@ -51,7 +51,7 @@ body {
   min-height: 100vh;
   font-size: var(--fs);
   line-height: 2em; /* computes to px so the gutter inherits the exact line grid */
-  padding: 22vh 1.25rem 45vh calc(1rem + 3.4em);
+  padding: 22vh calc(1rem + 3.4em) 45vh 1.25rem;
   cursor: text;
 }
 
@@ -68,7 +68,7 @@ body {
   position: absolute;
   top: 0;
   bottom: 0;
-  right: 100%;
+  left: 100%;
   width: 3.4em;
   pointer-events: none;
   user-select: none;
@@ -76,7 +76,7 @@ body {
 
 .gutter span {
   position: absolute;
-  right: 1.3em;
+  left: 1.3em;
   font-size: .68em;
   color: var(--dim);
   font-variant-numeric: tabular-nums;
