@@ -132,33 +132,42 @@ body {
 .tool:hover { color: var(--ink); opacity: 1; }
 
 .clear {
-  position: relative;
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
 }
 
-/* hold progress: a line that takes the full five seconds to cross */
-.clear::after {
-  content: "";
-  position: absolute;
-  left: .45rem;
-  right: .45rem;
-  bottom: .05rem;
-  height: 1px;
-  background: var(--over);
-  transform: scaleX(0);
-  transform-origin: left;
+.clear.holding { color: var(--over); opacity: 1; }
+
+/* hold progress: an amber tide takes the full five seconds to reach the
+   top of the page; let go early and it falls away */
+.flood {
+  position: fixed;
+  inset: 0;
+  background: color-mix(in srgb, var(--over) 16%, transparent);
+  border-top: 1px solid var(--over);
+  transform: translateY(100%);
+  transition: transform .7s cubic-bezier(.55, .06, .8, .5);
+  pointer-events: none;
 }
 
-.clear.holding { color: var(--over); opacity: 1; }
-.clear.holding::after {
-  transform: scaleX(1);
+.flood.rise {
+  transform: translateY(0);
   transition: transform 5s linear;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .flood { visibility: hidden; }
+}
+
 .fs { font-size: 1.05rem; }
+
+/* touch screens: same quiet glyphs, thumb-sized targets */
+@media (pointer: coarse) {
+  .tools { gap: .4rem; }
+  .tool { padding: .75rem .6rem; }
+}
 
 @media (display-mode: standalone), (display-mode: fullscreen) {
   .fs { display: none; }

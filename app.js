@@ -9,6 +9,7 @@ const fsBtn   = document.getElementById('fs');
 const exportBtn = document.getElementById('export');
 const themeBtn  = document.getElementById('theme');
 const clearBtn  = document.getElementById('clear');
+const flood     = document.getElementById('flood');
 
 const TARGETS = [5, 7, 5, 7, 7];
 const STORE_KEY = 'tanka-time-doc';
@@ -209,9 +210,11 @@ let holdTimer = 0;
 function startHold() {
   if (holdTimer || !getText().trim()) return;
   clearBtn.classList.add('holding');
+  flood.classList.add('rise');
   holdTimer = setTimeout(() => {
     holdTimer = 0;
     clearBtn.classList.remove('holding');
+    flood.classList.remove('rise');
     setText('');
     refresh();
     save();
@@ -224,6 +227,7 @@ function cancelHold() {
   clearTimeout(holdTimer);
   holdTimer = 0;
   clearBtn.classList.remove('holding');
+  flood.classList.remove('rise');
 }
 
 clearBtn.addEventListener('pointerdown', e => {
