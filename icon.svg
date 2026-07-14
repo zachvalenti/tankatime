@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <rect width="512" height="512" fill="#0a0c0a"/>
-  <g fill="#4ade80" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="230" font-weight="700" text-anchor="middle">
-    <text x="256" y="225">=</text>
-    <text x="256" y="425">31</text>
+  <g fill="#4ade80" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="200" font-weight="700" text-anchor="middle">
+    <text x="256" y="224">=</text>
+    <text x="256" y="398">31</text>
   </g>
 </svg>
