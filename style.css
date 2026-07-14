@@ -160,21 +160,6 @@ body {
   transition: transform 5s linear;
 }
 
-/* reduce motion: no travelling tide — the same tint fades in over the
-   five seconds instead, and fades away on release */
-@media (prefers-reduced-motion: reduce) {
-  .flood {
-    transform: none;
-    border-top: 0;
-    opacity: 0;
-    transition: opacity .5s ease;
-  }
-  .flood.rise {
-    opacity: 1;
-    transition: opacity 5s linear;
-  }
-}
-
 .fs { font-size: 1.05rem; }
 
 /* touch screens: same quiet glyphs, thumb-sized targets */
