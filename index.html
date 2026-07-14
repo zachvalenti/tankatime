@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tanka Time</title>
+<meta name="description" content="A quiet room for tanka — syllables counted line by line.">
+<meta name="theme-color" content="#0a0c0a">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Tanka">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main class="page" id="page">
+  <div class="doc" id="doc">
+    <div class="gutter" id="gutter" aria-hidden="true"></div>
+    <div class="editor" id="editor" contenteditable="true" spellcheck="false"
+         autocapitalize="off" autocorrect="off" writingsuggestions="false"
+         role="textbox" aria-multiline="true" aria-label="Write"></div>
+  </div>
+</main>
+<div class="bar">
+  <span id="total" class="total"></span>
+  <div class="tools">
+    <button id="export" class="tool" title="Export as .txt" aria-label="Export as plain text">txt</button>
+    <button id="theme" class="tool" title="Switch theme" aria-label="Switch theme">◐</button>
+    <button id="fs" class="tool fs" title="Fullscreen" aria-label="Toggle fullscreen">⛶</button>
+  </div>
+</div>
+<script src="app.js"></script>
+</body>
+</html>

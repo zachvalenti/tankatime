@@ -1,0 +1,138 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg:   #0a0c0a;
+  --ink:  #9be9a8;
+  --dim:  #3d5c46;
+  --hit:  #4ade80;
+  --over: #d98a62;
+  --sel:  rgba(74, 222, 128, .25);
+  --fs:   clamp(17px, 2.4vw, 21px);
+  color-scheme: dark;
+}
+
+/* creme paper, black ink */
+:root[data-theme="paper"] {
+  --bg:   #f6f1e3;
+  --ink:  #221d15;
+  --dim:  #b3a789;
+  --hit:  #2f7d46;
+  --over: #c05f33;
+  --sel:  rgba(47, 125, 70, .22);
+  color-scheme: light;
+}
+
+/* dusk: candlelight gold on deep violet */
+:root[data-theme="dusk"] {
+  --bg:   #171321;
+  --ink:  #e6c98f;
+  --dim:  #5d5372;
+  --hit:  #ffcf6e;
+  --over: #e2725b;
+  --sel:  rgba(230, 201, 143, .25);
+}
+
+html { background: var(--bg); }
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  caret-color: var(--hit);
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color .25s ease, color .25s ease;
+}
+
+::selection { background: var(--sel); }
+
+.page {
+  max-width: 38rem;
+  margin: 0 auto;
+  min-height: 100vh;
+  font-size: var(--fs);
+  line-height: 2em; /* computes to px so the gutter inherits the exact line grid */
+  padding: 22vh 1.25rem 45vh calc(1rem + 3.4em);
+  cursor: text;
+}
+
+.doc { position: relative; }
+
+.editor {
+  outline: none;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  min-height: 2em;
+}
+
+.gutter {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 100%;
+  width: 3.4em;
+  pointer-events: none;
+  user-select: none;
+}
+
+.gutter span {
+  position: absolute;
+  right: 1.3em;
+  font-size: .68em;
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+  transition: color .25s ease;
+}
+
+.gutter span[data-state="hit"]  { color: var(--hit); }
+.gutter span[data-state="over"] { color: var(--over); }
+
+.doc.empty::after {
+  content: "5 · 7 · 5 · 7 · 7";
+  position: absolute;
+  top: 0;
+  left: 0;
+  color: var(--dim);
+  pointer-events: none;
+}
+
+.bar {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: .5rem calc(.8rem + env(safe-area-inset-right))
+           calc(.5rem + env(safe-area-inset-bottom))
+           calc(.9rem + env(safe-area-inset-left));
+  pointer-events: none;
+  font-size: .8rem;
+  color: var(--dim);
+  letter-spacing: .05em;
+}
+
+.tools {
+  display: flex;
+  align-items: center;
+  gap: .1rem;
+  pointer-events: auto;
+}
+
+.tool {
+  background: none;
+  border: 0;
+  color: var(--dim);
+  font: inherit;
+  font-size: .85rem;
+  cursor: pointer;
+  opacity: .6;
+  padding: .2rem .45rem;
+  transition: color .25s ease;
+}
+
+.tool:hover { color: var(--ink); opacity: 1; }
+
+.fs { font-size: 1.05rem; }
+
+@media (display-mode: standalone), (display-mode: fullscreen) {
+  .fs { display: none; }
+}
