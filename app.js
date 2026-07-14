@@ -209,8 +209,8 @@ function buzz(pattern) {
 }
 
 // clearing is destructive, so the button only fires after an
-// unbroken five-second hold; releasing early cancels
-const HOLD_MS = 5000;
+// unbroken three-second hold; releasing early cancels
+const HOLD_MS = 3000;
 let holdTimer = 0;
 
 function startHold() {

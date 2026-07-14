@@ -146,7 +146,7 @@ body {
 
 .clear.holding { color: var(--tide); opacity: 1; }
 
-/* hold progress: an ocean tide takes the full five seconds to reach the
+/* hold progress: an ocean tide takes the full three seconds to reach the
    top of the page; let go early and it falls away */
 .flood {
   position: fixed;
@@ -158,7 +158,7 @@ body {
 
 .flood.rise {
   transform: translateY(0);
-  transition: transform 5s linear;
+  transition: transform 3s linear;
 }
 
 /* the water is one translucent body whose scalloped surface is cut by a
