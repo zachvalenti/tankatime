@@ -155,7 +155,10 @@ function refresh() {
     pos++;
   }
 
-  gutter.replaceChildren(frag);
+  // until the first real character, the 5·7·5·7·7 hint stands alone —
+  // no margin counts
+  if (any) gutter.replaceChildren(frag);
+  else gutter.replaceChildren();
   doc.classList.toggle('empty', !any);
   totalEl.textContent = total ? `${total} syllable${total === 1 ? '' : 's'}` : '';
   scheduleSave();
