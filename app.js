@@ -122,18 +122,31 @@ function setText(text) {
 function refresh() {
   normalize();
   const frag = document.createDocumentFragment();
+  const rows = [...editor.children];
+  const blank = rows.map(d => !d.textContent.replace(/\u00a0/g, ' ').trim());
   let pos = 0, total = 0, any = false;
 
-  for (const line of editor.children) {
-    const text = line.textContent.replace(/\u00a0/g, ' ');
-    if (!text.trim()) { pos = 0; continue; } // blank line starts a new tanka
+  for (let i = 0; i < rows.length; i++) {
+    if (blank[i]) {
+      // two blank lines in a row \u2014 or one once the five slots are
+      // filled \u2014 start a new tanka; a lone blank inside an unfinished
+      // tanka keeps its slot and counts as 0
+      if (blank[i - 1] || blank[i + 1] || pos >= TARGETS.length) { pos = 0; continue; }
+      const span = document.createElement('span');
+      span.textContent = '0';
+      span.style.top = rows[i].offsetTop + 'px';
+      span.dataset.state = 'under';
+      frag.appendChild(span);
+      pos++;
+      continue;
+    }
     any = true;
-    const n = countLine(text);
+    const n = countLine(rows[i].textContent.replace(/\u00a0/g, ' '));
     total += n;
     const target = pos < TARGETS.length ? TARGETS[pos] : null;
     const span = document.createElement('span');
     span.textContent = n;
-    span.style.top = line.offsetTop + 'px';
+    span.style.top = rows[i].offsetTop + 'px';
     span.dataset.state =
       target === null ? 'free' :
       n === target    ? 'hit'  :
@@ -212,13 +225,47 @@ function buzz(pattern) {
 // unbroken three-second hold; releasing early cancels
 const HOLD_MS = 3000;
 let holdTimer = 0;
+let churnFrame = 0;
+
+// the two surface animations live on .flood::before; the rise itself is
+// a transition on .flood, so filter by name to leave it untouched
+function surfAnims() {
+  try {
+    return flood.getAnimations({ subtree: true })
+      .filter(a => a.animationName === 'slosh' || a.animationName === 'chop');
+  } catch (_) { return []; }
+}
+
+// the longer the hold survives, the faster and rougher the water:
+// --amp grows the heave while both surface animations speed up
+function churn() {
+  const anims = surfAnims();
+  const start = performance.now();
+  const step = () => {
+    const p = Math.min((performance.now() - start) / HOLD_MS, 1);
+    const fury = p * p; // calm at first, frantic by the end
+    flood.style.setProperty('--amp', (1 + fury * 1.8).toFixed(3));
+    for (const a of anims) a.playbackRate = 1 + fury * 4;
+    if (p < 1) churnFrame = requestAnimationFrame(step);
+  };
+  churnFrame = requestAnimationFrame(step);
+}
+
+function calm() {
+  cancelAnimationFrame(churnFrame);
+  churnFrame = 0;
+  flood.style.removeProperty('--amp');
+  for (const a of surfAnims()) a.playbackRate = 1;
+}
 
 function startHold() {
   if (holdTimer || !getText().trim()) return;
   clearBtn.classList.add('holding');
   flood.classList.add('rise');
+  churn();
   holdTimer = setTimeout(() => {
     holdTimer = 0;
+    calm();
     clearBtn.classList.remove('holding');
     flood.classList.remove('rise');
     setText('');
@@ -233,6 +280,7 @@ function cancelHold() {
   if (!holdTimer) return;
   clearTimeout(holdTimer);
   holdTimer = 0;
+  calm();
   clearBtn.classList.remove('holding');
   flood.classList.remove('rise');
 }

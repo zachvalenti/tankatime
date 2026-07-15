@@ -168,7 +168,7 @@ body {
 .flood::before {
   content: "";
   position: absolute;
-  inset: -28px 0 -20px 0;
+  inset: -28px 0 -44px 0; /* deep enough that a full-fury heave never lifts the body clear of the page edge */
   background: var(--flood);
   -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 900 28'%3E%3Cpath d='M0 14 C50 14 75 3 145 3 C215 3 245 25 320 25 C385 25 405 9 470 9 C535 9 555 21 625 21 C680 21 705 1 775 4 C830 6.5 870 14 900 14 V28 H0 Z'/%3E%3C/svg%3E") 0 0/900px 28px repeat-x,
                 linear-gradient(#000, #000) 0 28px/100% calc(100% - 28px) no-repeat;
@@ -180,16 +180,18 @@ body {
 
 .flood.rise::before { animation-play-state: running; }
 
-/* the swell: the whole surface heaves on an uneven beat */
+/* the swell: the whole surface heaves on an uneven beat.
+   --amp (set from JS while the hold runs) scales the heave so the
+   water grows rougher the longer the button is held */
 @keyframes slosh {
   0%   { transform: translateY(0); }
-  14%  { transform: translateY(-12px); }
-  27%  { transform: translateY(-4px); }
-  41%  { transform: translateY(-11px); }
-  56%  { transform: translateY(3px); }
-  70%  { transform: translateY(10px); }
-  82%  { transform: translateY(-2px); }
-  92%  { transform: translateY(7px); }
+  14%  { transform: translateY(calc(-12px * var(--amp, 1))); }
+  27%  { transform: translateY(calc(-4px * var(--amp, 1))); }
+  41%  { transform: translateY(calc(-11px * var(--amp, 1))); }
+  56%  { transform: translateY(calc(3px * var(--amp, 1))); }
+  70%  { transform: translateY(calc(10px * var(--amp, 1))); }
+  82%  { transform: translateY(calc(-2px * var(--amp, 1))); }
+  92%  { transform: translateY(calc(7px * var(--amp, 1))); }
   100% { transform: translateY(0); }
 }
 

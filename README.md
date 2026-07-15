@@ -4,7 +4,9 @@ A quiet room for tanka. WriteRoom inspired full-screen writing with a syllable c
 
 - Counts follow the tanka form: lines that hit their 5-7-5-7-7 target glow
   green; lines that run over turn amber.
-- A blank line starts a new tanka — the 5-7-5-7-7 targets reset.
+- Targets follow line position and re-flow as you edit; an empty line
+  keeps its slot and shows a 0. Two blank lines in a row — or one after a
+  finished five-line verse — start a new tanka and reset the targets.
 - Everything autosaves to the browser (localStorage). No accounts, no cloud.
 - `txt` exports the page as a plain-text file; `◐` cycles themes
   (green room → creme paper → dusk).
