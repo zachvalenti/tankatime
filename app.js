@@ -227,50 +227,124 @@ function buzz(pattern) {
 // clearing is destructive, so the button only fires after an
 // unbroken three-second hold; releasing early cancels
 const HOLD_MS = 3000;
+const FALL_MS = 700;
 let holdTimer = 0;
-let churnFrame = 0;
 
-// the two surface animations live on .flood::before; the rise itself is
-// a transition on .flood, so filter by name to leave it untouched
-function surfAnims() {
-  try {
-    return flood.getAnimations({ subtree: true })
-      .filter(a => a.animationName === 'slosh' || a.animationName === 'chop');
-  } catch (_) { return []; }
-}
+// the water: three translucent layers drawn on the flood canvas, each
+// a sum of sines travelling at its own speed, so the crests deform as
+// they drift instead of sliding by as one rigid silhouette. Layers
+// alternate drift direction, and everything swells and speeds up the
+// longer the hold survives.
+const water = (() => {
+  const TAU = Math.PI * 2;
+  const ctx = flood.getContext('2d');
+  let raf = 0, mode = 'idle'; // idle | rising | falling
+  let riseT0 = 0, riseP0 = 0, fallT0 = 0, fallP0 = 0;
+  let p = 0, lastNow = 0, tide = '#58a6c8';
+  let layers = [];
 
-// the longer the hold survives, the faster and rougher the water:
-// --amp grows the heave while both surface animations speed up
-function churn() {
-  const anims = surfAnims();
-  const start = performance.now();
-  const step = () => {
-    const p = Math.min((performance.now() - start) / HOLD_MS, 1);
+  // fresh randomized layers each hold, so no two floods are the same
+  function build() {
+    layers = [];
+    for (let i = 0; i < 3; i++) {
+      const dir = i % 2 ? -1 : 1;
+      const waves = [];
+      for (let k = 0; k < 3; k++) waves.push({
+        amp: 4 + Math.random() * 6,               // px, before fury
+        len: 130 + Math.random() * 320,           // wavelength, px
+        spd: dir * (0.5 + Math.random() * 1.1) * (1 + k * 0.6),
+        ph: Math.random() * TAU,                  // running phase
+      });
+      layers.push({ waves, sink: i * 12, alpha: 0.105 - i * 0.015 });
+    }
+  }
+
+  function fit() {
+    const dpr = Math.min(devicePixelRatio || 1, 2);
+    const w = Math.round(innerWidth * dpr), h = Math.round(innerHeight * dpr);
+    if (flood.width !== w || flood.height !== h) { flood.width = w; flood.height = h; }
+    return dpr;
+  }
+
+  function frame(now) {
+    const dt = Math.min((now - lastNow) / 1000, 0.1);
+    lastNow = now;
+
+    if (mode === 'rising') {
+      p = Math.min(riseP0 + (1 - riseP0) * ((now - riseT0) / HOLD_MS), 1);
+    } else {
+      const q = Math.min((now - fallT0) / FALL_MS, 1);
+      p = fallP0 * (1 - q * q); // gravity: slow release, quick drop
+      if (q >= 1) { stop(); return; }
+    }
     const fury = p * p; // calm at first, frantic by the end
-    flood.style.setProperty('--amp', (1 + fury * 1.8).toFixed(3));
-    for (const a of anims) a.playbackRate = 1 + fury * 4;
-    if (p < 1) churnFrame = requestAnimationFrame(step);
-  };
-  churnFrame = requestAnimationFrame(step);
-}
 
-function calm() {
-  cancelAnimationFrame(churnFrame);
-  churnFrame = 0;
-  flood.style.removeProperty('--amp');
-  for (const a of surfAnims()) a.playbackRate = 1;
-}
+    const dpr = fit();
+    const w = flood.width, h = flood.height;
+    // surface travels from safely under the page to well over the top,
+    // with headroom for the biggest full-fury crests
+    const base = (h + 70 * dpr) - (h + 170 * dpr) * p;
+    const swell = 1 + fury * 1.5;
+    const rush = 1 + fury * 3;
+
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = tide;
+    for (const L of layers) {
+      ctx.globalAlpha = L.alpha;
+      ctx.beginPath();
+      ctx.moveTo(0, h);
+      const step = 8 * dpr;
+      for (let x = 0; x <= w + step; x += step) {
+        let y = base + L.sink * dpr;
+        for (const wv of L.waves) {
+          y += wv.amp * dpr * swell * Math.sin(x / (wv.len * dpr) * TAU + wv.ph);
+        }
+        ctx.lineTo(x, y);
+      }
+      ctx.lineTo(w, h);
+      ctx.closePath();
+      ctx.fill();
+      for (const wv of L.waves) wv.ph += wv.spd * rush * dt;
+    }
+    ctx.globalAlpha = 1;
+    raf = requestAnimationFrame(frame);
+  }
+
+  function stop() {
+    cancelAnimationFrame(raf);
+    raf = 0;
+    mode = 'idle';
+    p = 0;
+    ctx.clearRect(0, 0, flood.width, flood.height);
+  }
+
+  return {
+    rise() {
+      tide = getComputedStyle(document.documentElement)
+        .getPropertyValue('--tide').trim() || tide;
+      if (mode === 'idle') build();
+      riseP0 = p; // a re-press mid-fall picks up from the current level
+      riseT0 = lastNow = performance.now();
+      mode = 'rising';
+      if (!raf) raf = requestAnimationFrame(frame);
+    },
+    fall() {
+      if (mode === 'idle') return;
+      fallP0 = p;
+      fallT0 = performance.now();
+      mode = 'falling';
+    },
+  };
+})();
 
 function startHold() {
   if (holdTimer || !getText().trim()) return;
   clearBtn.classList.add('holding');
-  flood.classList.add('rise');
-  churn();
+  water.rise();
   holdTimer = setTimeout(() => {
     holdTimer = 0;
-    calm();
     clearBtn.classList.remove('holding');
-    flood.classList.remove('rise');
+    water.fall();
     setText('');
     refresh();
     save();
@@ -283,9 +357,8 @@ function cancelHold() {
   if (!holdTimer) return;
   clearTimeout(holdTimer);
   holdTimer = 0;
-  calm();
   clearBtn.classList.remove('holding');
-  flood.classList.remove('rise');
+  water.fall();
 }
 
 clearBtn.addEventListener('pointerdown', e => {
