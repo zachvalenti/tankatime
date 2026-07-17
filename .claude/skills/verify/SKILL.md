@@ -28,8 +28,9 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
 - Gutter state: `page.$$eval('#gutter span', els => els.map(s => s.textContent + ':' + s.dataset.state))`
   — states are `hit` / `over` / `under` / `free`.
 - Clear-hold: `page.mouse.down()` over `#clear`, wait, sample, `mouse.up()`.
-  Full hold is 3 s (`HOLD_MS`). Wave churn state:
-  `flood.getAnimations({subtree:true})` playbackRates + computed `--amp`.
+  Full hold is 3 s (`HOLD_MS`). The water is drawn on the `#flood` canvas;
+  sample it with `getImageData` — find the surface via the first row with
+  nonzero alpha in a column, and check layer stacking via alpha depth.
 
 ## Flows worth driving
 
