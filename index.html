@@ -26,7 +26,10 @@
 </main>
 <canvas class="flood" id="flood" aria-hidden="true"></canvas>
 <div class="bar">
-  <span id="total" class="total"></span>
+  <div class="tools">
+    <button id="context" class="tool" title="Context" aria-label="About Tanka Time">?</button>
+    <span id="total" class="total"></span>
+  </div>
   <div class="tools">
     <button id="clear" class="tool clear" title="Hold 3 seconds to clear"
             aria-label="Clear everything — hold for three seconds">clear</button>
@@ -35,6 +38,25 @@
     <button id="fs" class="tool fs" title="Fullscreen" aria-label="Toggle fullscreen">⛶</button>
   </div>
 </div>
+<dialog class="about" id="about" aria-label="About Tanka Time">
+  <button id="aboutClose" class="tool about-close" aria-label="Close">×</button>
+  <p>Welcome to Tanka Time 👋 Your friendly, neighborhood Tanka notepad.</p>
+  <p>What’s a Tanka? You can think of it like a slightly longer Haiku. It’s
+  a poetic form with 5 lines with the following syllable count, totaling
+  to 31:</p>
+  <p class="form">5<br>7<br>5<br>7<br>7</p>
+  <p>I’m Zach Valenti and this app was created to scratch my own itch. I
+  was first inspired to write Tanka nearly a decade ago reading “Poems to
+  Eat” by master of the form, Ishikawa Takuboku. Here’s what he had to say
+  about that title:</p>
+  <blockquote>“The name means poems made with both feet upon the ground.
+  It means poems written without putting any distance from actual life.
+  They are not delicacies, or dainty dishes, but food indispensable for us
+  in our daily meal. To define poetry in this way may be to pull it down
+  from its established position, but to me it means to make poetry, which
+  has added nothing or detracted nothing from actual life, into something
+  which cannot be dispensed with.”</blockquote>
+</dialog>
 <script src="app.js"></script>
 </body>
 </html>

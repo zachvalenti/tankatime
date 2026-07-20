@@ -188,10 +188,7 @@ editor.addEventListener('paste', e => {
   });
 });
 
-// click anywhere in the room to write
-page.addEventListener('mousedown', e => {
-  if (editor.contains(e.target)) return;
-  e.preventDefault();
+function focusEnd() {
   editor.focus();
   const sel = document.getSelection();
   const r = document.createRange();
@@ -199,6 +196,13 @@ page.addEventListener('mousedown', e => {
   r.collapse(false);
   sel.removeAllRanges();
   sel.addRange(r);
+}
+
+// click anywhere in the room to write
+page.addEventListener('mousedown', e => {
+  if (editor.contains(e.target)) return;
+  e.preventDefault();
+  focusEnd();
 });
 
 fsBtn.addEventListener('click', () => {
@@ -391,9 +395,23 @@ themeBtn.addEventListener('click', () => {
   applyTheme(names[(cur + 1) % names.length]);
 });
 
+const aboutBtn = document.getElementById('context');
+const about    = document.getElementById('about');
+
+aboutBtn.addEventListener('click', () => about.showModal());
+document.getElementById('aboutClose').addEventListener('click', () => about.close());
+// Esc closes natively; a click on the backdrop closes too
+about.addEventListener('click', e => {
+  const r = about.getBoundingClientRect();
+  if (e.clientX < r.left || e.clientX > r.right ||
+      e.clientY < r.top || e.clientY > r.bottom) about.close();
+});
+// whichever way it closes, hand the pen back
+about.addEventListener('close', focusEnd);
+
 // keep the caret where it is when a toolbar button is clicked,
 // and acknowledge every press with a tick where haptics exist
-for (const btn of [clearBtn, exportBtn, themeBtn, fsBtn]) {
+for (const btn of [clearBtn, exportBtn, themeBtn, fsBtn, aboutBtn]) {
   btn.addEventListener('mousedown', e => e.preventDefault());
   btn.addEventListener('pointerdown', () => buzz(10));
 }

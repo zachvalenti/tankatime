@@ -10,6 +10,8 @@ A quiet room for tanka. WriteRoom inspired full-screen writing with a syllable c
 - Everything autosaves to the browser (localStorage). No accounts, no cloud.
 - `txt` exports the page as a plain-text file; `◐` cycles themes
   (green room → creme paper → dusk).
+- `?` (bottom left) opens a short note on the tanka form and why the
+  app exists.
 - `clear` wipes the page — hold it while the color rises for three
   seconds; letting go early cancels.
 - Installable PWA; works fully offline after the first visit.
