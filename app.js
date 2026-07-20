@@ -400,6 +400,7 @@ const about    = document.getElementById('about');
 
 aboutBtn.addEventListener('click', () => about.showModal());
 document.getElementById('aboutClose').addEventListener('click', () => about.close());
+document.getElementById('aboutGo').addEventListener('click', () => about.close());
 // Esc closes natively; a click on the backdrop closes too
 about.addEventListener('click', e => {
   const r = about.getBoundingClientRect();
