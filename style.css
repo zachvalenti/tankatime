@@ -157,6 +157,46 @@ body {
 
 .fs { font-size: 1.05rem; }
 
+/* the context card: same quiet room, one step removed */
+.about {
+  margin: auto; /* the * reset kills the UA centering; restore it */
+  background: var(--bg);
+  color: var(--ink);
+  border: 1px solid var(--dim);
+  border-radius: 4px;
+  max-width: min(32rem, calc(100vw - 2.5rem));
+  max-height: min(78vh, 100vh - 3rem);
+  overflow-y: auto;
+  padding: 1.5rem 1.7rem;
+  font-size: .85rem;
+  line-height: 1.75;
+  letter-spacing: .01em;
+}
+
+.about::backdrop { background: rgba(0, 0, 0, .55); }
+
+.about p + p, .about blockquote { margin-top: 1em; }
+
+.about .form {
+  color: var(--hit);
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+}
+
+.about blockquote {
+  color: var(--dim);
+  border-left: 2px solid var(--dim);
+  padding-left: 1em;
+}
+
+.about-close {
+  position: absolute;
+  top: .4rem;
+  right: .5rem;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
 /* touch screens: same quiet glyphs, thumb-sized targets */
 @media (pointer: coarse) {
   .tools { gap: .4rem; }
