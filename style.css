@@ -35,7 +35,15 @@
   --sel:  rgba(230, 201, 143, .25);
 }
 
-html { background: var(--bg); }
+html {
+  background: var(--bg);
+  /* iOS standalone: a bottom-edge rubber-band can wedge the scroll */
+  overscroll-behavior-y: none;
+}
+
+/* keep the room still while the context card is up — the card's own
+   scroll must not chain into the page behind it */
+html:has(dialog[open]) { overflow: hidden; }
 
 body {
   background: var(--bg);
@@ -167,6 +175,7 @@ body {
   max-width: min(32rem, calc(100vw - 2.5rem));
   max-height: min(78vh, 100vh - 3rem);
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 1.5rem 1.7rem;
   font-size: .85rem;
   line-height: 1.75;
@@ -196,6 +205,22 @@ body {
   font-size: 1.1rem;
   line-height: 1;
 }
+
+.about .go {
+  display: block;
+  margin: 1.6em auto 0;
+  background: none;
+  border: 1px solid var(--dim);
+  border-radius: 3px;
+  color: var(--ink);
+  font: inherit;
+  padding: .55em 1.5em;
+  cursor: pointer;
+  letter-spacing: .06em;
+  transition: color .25s ease, border-color .25s ease;
+}
+
+.about .go:hover { color: var(--hit); border-color: var(--hit); }
 
 /* touch screens: same quiet glyphs, thumb-sized targets */
 @media (pointer: coarse) {
