@@ -5,10 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Tanka Time</title>
 <meta name="description" content="A quiet room for tanka — syllables counted line by line.">
+<!-- theme-color tints the browser chrome; app.js updates it per theme -->
 <meta name="theme-color" content="#0a0c0a">
+<!-- the manifest + icons make the page installable as an app (PWA) -->
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
+<!-- iOS-specific: run full-screen when launched from the home screen -->
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -18,12 +21,16 @@
 <body>
 <main class="page" id="page">
   <div class="doc" id="doc">
+    <!-- the margin numbers; aria-hidden keeps screen readers on the poem -->
     <div class="gutter" id="gutter" aria-hidden="true"></div>
+    <!-- contenteditable turns a plain div into the editor; the off/false
+         attributes silence autocorrect so the poet's spelling stands -->
     <div class="editor" id="editor" contenteditable="true" spellcheck="false"
          autocapitalize="off" autocorrect="off" writingsuggestions="false"
          role="textbox" aria-multiline="true" aria-label="Write"></div>
   </div>
 </main>
+<!-- the clear-hold water is drawn here by app.js -->
 <canvas class="flood" id="flood" aria-hidden="true"></canvas>
 <div class="bar">
   <div class="tools">
@@ -56,8 +63,21 @@
   from its established position, but to me it means to make poetry, which
   has added nothing or detracted nothing from actual life, into something
   which cannot be dispensed with.”</blockquote>
+  <p><strong>A note on the count:</strong></p>
+  <p>Syllables live in the voice, but English is written for the eye —
+  the same letters can hide different sounds, which is why “creature”
+  has two beats and “creative” has three.</p>
+  <p>Tanka Time counts as carefully as it can, but some words simply
+  have no single answer: “fire” can be one syllable or two, “every” two
+  or three, depending on how you read it aloud.</p>
+  <p>No counter — human or machine — can settle those for you. So treat
+  the number in the margin as an <em>estimate</em> and check your math.
+  Your voice is the final authority — for poets, it always has been.</p>
   <button id="aboutGo" class="go">✍️</button>
 </dialog>
+<!-- classic scripts run in order: count.js first, so its counting
+     functions exist by the time app.js calls them -->
+<script src="count.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

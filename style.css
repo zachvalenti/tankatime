@@ -1,15 +1,25 @@
+/* Tanka Time styles. One sheet, no preprocessor.
+ *
+ * Theming works through CSS custom properties: :root sets the default
+ * palette, and a data-theme attribute on <html> (toggled by app.js)
+ * swaps in another. Every rule below refers to colors as var(--name),
+ * so a theme change is one attribute write.
+ */
+
+/* reset: browsers ship default margins/paddings; start from zero.
+   border-box makes width include padding, which keeps sizing sane */
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 :root {
-  --bg:   #0a0c0a;
-  --ink:  #9be9a8;
-  --dim:  #3d5c46;
-  --hit:  #4ade80;
-  --over: #d98a62;
-  --tide: #58a6c8;
+  --bg:   #0a0c0a;   /* the room */
+  --ink:  #9be9a8;   /* body text */
+  --dim:  #3d5c46;   /* quiet chrome: counts, buttons, borders */
+  --hit:  #4ade80;   /* a line that meets its target */
+  --over: #d98a62;   /* a line that runs past it */
+  --tide: #58a6c8;   /* the clear-hold water */
   --sel:  rgba(74, 222, 128, .25);
-  --fs:   clamp(17px, 2.4vw, 21px);
-  color-scheme: dark;
+  --fs:   clamp(17px, 2.4vw, 21px); /* fluid type with a floor and ceiling */
+  color-scheme: dark; /* tells the browser to render UA widgets dark */
 }
 
 /* creme paper, black ink */
@@ -42,15 +52,18 @@ html {
 }
 
 /* keep the room still while the context card is up — the card's own
-   scroll must not chain into the page behind it */
+   scroll must not chain into the page behind it. :has() lets the page
+   react to the state of an element inside it */
 html:has(dialog[open]) { overflow: hidden; }
 
 body {
   background: var(--bg);
   color: var(--ink);
+  /* ui-monospace = whatever monospace the OS considers native */
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   caret-color: var(--hit);
   -webkit-tap-highlight-color: transparent;
+  /* ease the palette swap when themes change */
   transition: background-color .25s ease, color .25s ease;
 }
 
@@ -58,23 +71,29 @@ body {
 
 .page {
   max-width: 38rem;
-  margin: 0 auto;
+  margin: 0 auto; /* the classic centering move: auto side margins */
   min-height: 100vh;
   font-size: var(--fs);
   line-height: 2em; /* computes to px so the gutter inherits the exact line grid */
+  /* generous top/bottom padding keeps the writing line mid-screen;
+     the right side reserves room for the count gutter */
   padding: 22vh calc(1rem + 3.4em) 45vh 1.25rem;
   cursor: text;
 }
 
+/* positioning context: the gutter's absolute coordinates and the
+   line offsets app.js measures are all relative to this box */
 .doc { position: relative; }
 
 .editor {
-  outline: none;
-  white-space: pre-wrap;
+  outline: none;          /* the whole page is the input; no focus ring */
+  white-space: pre-wrap;  /* honor typed spaces and line breaks */
   overflow-wrap: break-word;
   min-height: 2em;
 }
 
+/* the count column: absolutely positioned just past the text column,
+   inert to clicks and selection — numbers are scenery, not content */
 .gutter {
   position: absolute;
   top: 0;
@@ -85,18 +104,21 @@ body {
   user-select: none;
 }
 
+/* each count is a span pinned by app.js to its line's offsetTop */
 .gutter span {
   position: absolute;
   left: 1.3em;
   font-size: .68em;
   color: var(--dim);
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: tabular-nums; /* digits share a width; no jitter */
   transition: color .25s ease;
 }
 
+/* app.js labels each count via data-state; colors hang off that */
 .gutter span[data-state="hit"]  { color: var(--hit); }
 .gutter span[data-state="over"] { color: var(--over); }
 
+/* the 5·7·5·7·7 hint, shown only while the page is empty */
 .doc.empty::after {
   content: "5 · 7 · 5 · 7 · 7";
   position: absolute;
@@ -106,6 +128,8 @@ body {
   pointer-events: none;
 }
 
+/* the bottom toolbar spans the viewport; env(safe-area-inset-*) pads
+   past notches and home-bar indicators on phones */
 .bar {
   position: fixed;
   left: 0; right: 0; bottom: 0;
@@ -115,6 +139,8 @@ body {
   padding: .5rem calc(.8rem + env(safe-area-inset-right))
            calc(.5rem + env(safe-area-inset-bottom))
            calc(.9rem + env(safe-area-inset-left));
+  /* the bar itself ignores clicks so the page stays writable beneath
+     it; the .tools groups opt back in */
   pointer-events: none;
   font-size: .8rem;
   color: var(--dim);
@@ -131,6 +157,7 @@ body {
 /* the count sits centered in the open water between ? and the tools */
 .bar > .total { flex: 1; text-align: center; }
 
+/* buttons dressed down to quiet text glyphs */
 .tool {
   background: none;
   border: 0;
@@ -145,6 +172,8 @@ body {
 
 .tool:hover { color: var(--ink); opacity: 1; }
 
+/* the hold-to-clear button must own its gesture: no text selection,
+   no touch scrolling, no iOS callout menu mid-hold */
 .clear {
   touch-action: none;
   user-select: none;
@@ -160,7 +189,7 @@ body {
    on this canvas by app.js */
 .flood {
   position: fixed;
-  inset: 0;
+  inset: 0; /* shorthand for top/right/bottom/left: 0 */
   width: 100%;
   height: 100%;
   pointer-events: none;
@@ -178,15 +207,17 @@ body {
   max-width: min(32rem, calc(100vw - 2.5rem));
   max-height: min(78vh, 100vh - 3rem);
   overflow-y: auto;
-  overscroll-behavior: contain;
+  overscroll-behavior: contain; /* card scroll stays in the card */
   padding: 1.5rem 1.7rem;
   font-size: .85rem;
   line-height: 1.75;
   letter-spacing: .01em;
 }
 
+/* ::backdrop is the layer a modal <dialog> puts over the page */
 .about::backdrop { background: rgba(0, 0, 0, .55); }
 
+/* space paragraphs only where one follows another */
 .about p + p, .about blockquote { margin-top: 1em; }
 
 .about .form {
@@ -226,12 +257,15 @@ body {
 
 .about .go:hover { color: var(--hit); border-color: var(--hit); }
 
-/* touch screens: same quiet glyphs, thumb-sized targets */
+/* touch screens: same quiet glyphs, thumb-sized targets.
+   (pointer: coarse) matches fingers rather than screen size */
 @media (pointer: coarse) {
   .tools { gap: .4rem; }
   .tool { padding: .75rem .6rem; }
 }
 
+/* installed as an app there's no browser chrome to escape from —
+   drop the fullscreen button */
 @media (display-mode: standalone), (display-mode: fullscreen) {
   .fs { display: none; }
 }
