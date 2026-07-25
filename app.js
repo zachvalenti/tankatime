@@ -1,5 +1,15 @@
 'use strict';
 
+/* Tanka Time — the whole app in one file, no framework, no build step.
+ *
+ * index.html loads count.js (syllable counting) and then this file,
+ * which wires up everything else: the editor, the numbers in the
+ * margin, autosave, themes, export, the clear-hold flood, and offline
+ * support. Top to bottom it follows the page's life — grab elements,
+ * define behavior, attach listeners, restore saved state.
+ */
+
+// every element the script touches, grabbed once by id
 const page    = document.getElementById('page');
 const doc     = document.getElementById('doc');
 const editor  = document.getElementById('editor');
@@ -11,65 +21,26 @@ const themeBtn  = document.getElementById('theme');
 const clearBtn  = document.getElementById('clear');
 const flood     = document.getElementById('flood');
 
+// the tanka form: five lines of 5-7-5-7-7 syllables
 const TARGETS = [5, 7, 5, 7, 7];
 const STORE_KEY = 'tanka-time-doc';
 const THEME_KEY = 'tanka-time-theme';
 const THEMES = { room: '#0a0c0a', paper: '#f6f1e3', dusk: '#171321' };
-
-/* ---------- syllable counting ---------- */
-
-// words the heuristic gets wrong
-const SPECIAL = {
-  quiet: 2, quietly: 3, poem: 2, poems: 2, poet: 2, poets: 2,
-  poetry: 3, idea: 3, ideas: 3, ideal: 3, area: 3, aria: 3,
-};
-
-function countWord(token) {
-  const w = token.toLowerCase();
-  const letters = w.replace(/[’']/g, '').replace(/[^a-z]/g, '');
-  if (!letters) return 0;
-  if (SPECIAL[letters] != null) return SPECIAL[letters];
-
-  let n = (letters.match(/[aeiouy]+/g) || []).length;
-  if (n === 0) return 1;
-
-  // silent trailing e ("time"), but keep syllabic -le ("table")
-  if (n > 1 && /[^aeiouy]e$/.test(letters) && !/[^aeiouy]le$/.test(letters)) n--;
-  else if (n > 1 && /[^aeiouy]es$/.test(letters) && !/[^aeiouy]les$/.test(letters)
-           && !/(?:[sxz]|[cs]h)es$/.test(letters)) n--;
-  // silent -ed ("walked"), but not after t/d ("created", "loaded")
-  if (n > 1 && /[^aeiouytd]ed$/.test(letters)) n--;
-
-  // hiatus: consonant + i + vowel usually splits ("di-et", "li-on")
-  n += (letters.match(/[^aeiouy]i[aeiou]/g) || []).length;
-  // ...except fused endings ("na-tion", "spe-cial", "o-cean")
-  n -= (letters.match(/[cstgxn]ion|[cst]i(?:al|an|ou|en)/g) || []).length;
-
-  // vowel + ing is two beats ("be-ing", "go-ing", "fly-ing")
-  if (/[aeiouy]ing$/.test(letters)) n++;
-  // syllabic n't ("isn't", "didn't"), but not "don't", "can't"
-  if (/n[’']t$/.test(w) && /[^aeiouy]nt$/.test(letters)) n++;
-
-  return Math.max(1, n);
-}
-
-function countLine(text) {
-  let total = 0;
-  for (const token of text.split(/[^a-zA-Z'’]+/)) total += countWord(token);
-  return total;
-}
 
 /* ---------- editor structure ---------- */
 
 function makeLine(text) {
   const d = document.createElement('div');
   if (text) d.textContent = text;
+  // an empty line still needs height and a place for the caret; a lone
+  // <br> is how contenteditable represents "blank line"
   else d.appendChild(document.createElement('br'));
   return d;
 }
 
 // keep the editor as one <div> per line; browsers mostly do this on
 // their own once seeded, but repair stray nodes after odd edits
+// (contenteditable is loosely specified — every browser improvises)
 function normalize() {
   if (!editor.firstChild) {
     editor.appendChild(makeLine(''));
@@ -78,11 +49,13 @@ function normalize() {
   const isDiv = n => n.nodeType === 1 && n.tagName === 'DIV';
   if ([...editor.childNodes].every(isDiv)) return;
 
+  // remember the caret — moving nodes around would otherwise drop it
   const sel = document.getSelection();
   const saved = sel.rangeCount && editor.contains(sel.anchorNode)
     ? [sel.anchorNode, sel.anchorOffset, sel.focusNode, sel.focusOffset]
     : null;
 
+  // sweep loose text nodes into fresh <div> lines, splitting at <br>s
   let run = null;
   for (const node of [...editor.childNodes]) {
     if (isDiv(node)) { run = null; continue; }
@@ -107,6 +80,8 @@ function normalize() {
   }
 }
 
+// contenteditable pads with non-breaking spaces ( ); treat them
+// as ordinary spaces everywhere text leaves the editor
 function getText() {
   return [...editor.children]
     .map(d => d.textContent.replace(/\u00a0/g, ' '))
@@ -119,6 +94,10 @@ function setText(text) {
 
 /* ---------- render ---------- */
 
+// one pass rebuilds every margin number and the total. The new spans
+// collect in a DocumentFragment first so the page reflows once, and
+// each span is pinned to its line's offsetTop — the gutter is a
+// separate absolutely-positioned column that shadows the editor
 function refresh() {
   normalize();
   const frag = document.createDocumentFragment();
@@ -128,8 +107,8 @@ function refresh() {
 
   for (let i = 0; i < rows.length; i++) {
     if (blank[i]) {
-      // two blank lines in a row \u2014 or one once the five slots are
-      // filled \u2014 start a new tanka; a lone blank inside an unfinished
+      // two blank lines in a row — or one once the five slots are
+      // filled — start a new tanka; a lone blank inside an unfinished
       // tanka keeps its slot and counts as 0
       if (blank[i - 1] || blank[i + 1] || pos >= TARGETS.length) { pos = 0; continue; }
       const span = document.createElement('span');
@@ -147,6 +126,7 @@ function refresh() {
     const span = document.createElement('span');
     span.textContent = n;
     span.style.top = rows[i].offsetTop + 'px';
+    // data-state drives the color in style.css: hit green, over amber
     span.dataset.state =
       target === null ? 'free' :
       n === target    ? 'hit'  :
@@ -166,19 +146,25 @@ function refresh() {
 
 /* ---------- persistence ---------- */
 
+// debounce: writing localStorage on every keystroke would be wasteful,
+// so the save fires 400ms after the typing pauses
 let saveTimer = 0;
 function scheduleSave() {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(save, 400);
 }
 function save() {
+  // try/catch: storage can be full or blocked (private browsing)
   try { localStorage.setItem(STORE_KEY, getText()); } catch (_) {}
 }
 
 /* ---------- events ---------- */
 
+// 'input' fires on every edit, whatever caused it — keys, drag, undo
 editor.addEventListener('input', refresh);
 
+// pasted content arrives as styled HTML; take the plain text instead
+// and rebuild it line by line through the same commands typing uses
 editor.addEventListener('paste', e => {
   e.preventDefault();
   const text = (e.clipboardData || window.clipboardData).getData('text/plain');
@@ -188,6 +174,7 @@ editor.addEventListener('paste', e => {
   });
 });
 
+// place the caret after the last character (Range + Selection API)
 function focusEnd() {
   editor.focus();
   const sel = document.getSelection();
@@ -210,6 +197,8 @@ fsBtn.addEventListener('click', () => {
   else (document.documentElement.requestFullscreen?.() || Promise.resolve()).catch(() => {});
 });
 
+// no server to download from: build the .txt in memory as a Blob,
+// point a throwaway <a> at it, and click the link on the user's behalf
 exportBtn.addEventListener('click', () => {
   const text = getText();
   if (!text.trim()) return;
@@ -239,6 +228,8 @@ let holdTimer = 0;
 // they drift instead of sliding by as one rigid silhouette. Layers
 // alternate drift direction, and everything swells and speeds up the
 // longer the hold survives.
+// (Wrapped in an IIFE — an inline function called at once — so all its
+// working state stays private; only rise() and fall() escape.)
 const water = (() => {
   const TAU = Math.PI * 2;
   const ctx = flood.getContext('2d');
@@ -263,6 +254,8 @@ const water = (() => {
     }
   }
 
+  // size the canvas in device pixels, capped at 2× — sharp on phone
+  // screens without quadrupling the pixels to fill
   function fit() {
     const dpr = Math.min(devicePixelRatio || 1, 2);
     const w = Math.round(innerWidth * dpr), h = Math.round(innerHeight * dpr);
@@ -270,7 +263,9 @@ const water = (() => {
     return dpr;
   }
 
+  // one animation frame: advance the tide, redraw all three layers
   function frame(now) {
+    // dt is clamped so a backgrounded tab doesn't lurch on return
     const dt = Math.min((now - lastNow) / 1000, 0.1);
     lastNow = now;
 
@@ -311,6 +306,8 @@ const water = (() => {
       for (const wv of L.waves) wv.ph += wv.spd * rush * dt;
     }
     ctx.globalAlpha = 1;
+    // requestAnimationFrame: the browser calls frame() again right
+    // before the next repaint — the loop only runs while water shows
     raf = requestAnimationFrame(frame);
   }
 
@@ -324,6 +321,7 @@ const water = (() => {
 
   return {
     rise() {
+      // read the theme's water color off the CSS custom property
       tide = getComputedStyle(document.documentElement)
         .getPropertyValue('--tide').trim() || tide;
       if (mode === 'idle') build();
@@ -366,6 +364,8 @@ function cancelHold() {
 }
 
 clearBtn.addEventListener('pointerdown', e => {
+  // pointer capture: the button keeps receiving events even if the
+  // finger drifts off it mid-hold, so the release always lands here
   try { clearBtn.setPointerCapture(e.pointerId); } catch (_) {}
   startHold();
 });
@@ -374,6 +374,7 @@ clearBtn.addEventListener('pointercancel', cancelHold);
 // a five-second press is a long-press to the browser; keep its menu away
 clearBtn.addEventListener('contextmenu', e => e.preventDefault());
 
+// keyboard parity: space or enter can hold the button down too
 clearBtn.addEventListener('keydown', e => {
   if (e.repeat || (e.key !== ' ' && e.key !== 'Enter')) return;
   e.preventDefault();
@@ -382,6 +383,8 @@ clearBtn.addEventListener('keydown', e => {
 clearBtn.addEventListener('keyup', cancelHold);
 clearBtn.addEventListener('blur', cancelHold);
 
+// themes are sets of CSS custom properties keyed off data-theme on
+// <html> (see style.css); the meta tag recolors the browser chrome
 function applyTheme(name) {
   if (name === 'room') delete document.documentElement.dataset.theme;
   else document.documentElement.dataset.theme = name;
@@ -395,13 +398,16 @@ themeBtn.addEventListener('click', () => {
   applyTheme(names[(cur + 1) % names.length]);
 });
 
+// the context card is a native <dialog>; showModal() gives focus
+// trapping, an Esc-to-close, and a ::backdrop for free
 const aboutBtn = document.getElementById('context');
 const about    = document.getElementById('about');
 
 aboutBtn.addEventListener('click', () => about.showModal());
 document.getElementById('aboutClose').addEventListener('click', () => about.close());
 document.getElementById('aboutGo').addEventListener('click', () => about.close());
-// Esc closes natively; a click on the backdrop closes too
+// Esc closes natively; a click on the backdrop closes too (a backdrop
+// click reports the dialog as its target, so test the coordinates)
 about.addEventListener('click', e => {
   const r = about.getBoundingClientRect();
   if (e.clientX < r.left || e.clientX > r.right ||
@@ -417,11 +423,14 @@ for (const btn of [clearBtn, exportBtn, themeBtn, fsBtn, aboutBtn]) {
   btn.addEventListener('pointerdown', () => buzz(10));
 }
 
+// resize re-wraps the text, so the margin numbers need re-pinning;
+// wait for the flurry of events to settle first
 let resizeTimer = 0;
 addEventListener('resize', () => {
   clearTimeout(resizeTimer);
   resizeTimer = setTimeout(refresh, 100);
 });
+// mobile browsers discard tabs without warning — save on every hide
 addEventListener('pagehide', save);
 document.addEventListener('visibilitychange', () => { if (document.hidden) save(); });
 
@@ -431,10 +440,22 @@ applyTheme(THEMES[localStorage.getItem(THEME_KEY)] ? localStorage.getItem(THEME_
 setText(localStorage.getItem(STORE_KEY) || '');
 refresh();
 editor.focus();
+// custom fonts change line metrics; re-pin the numbers once they load
 document.fonts?.ready.then(refresh);
 
+// the syllable dictionary is data, not code: fetch it after first
+// paint and recount once it lands. Until then — or without it entirely
+// (file://, a first visit while offline) — the heuristic in count.js
+// carries the count alone
+fetch('syllables.json')
+  .then(r => (r.ok ? r.json() : Promise.reject(new Error(r.status))))
+  .then(data => { loadSyllableDict(data); refresh(); })
+  .catch(() => {});
+
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
-  // when an updated worker takes over, reload once so the new version
+  // the service worker (sw.js) caches every asset, making the app load
+  // offline; browsers allow one on https or localhost only.
+  // When an updated worker takes over, reload once so the new version
   // shows on the first visit instead of the second (draft is in
   // localStorage, so nothing is lost)
   const hadController = !!navigator.serviceWorker.controller;
