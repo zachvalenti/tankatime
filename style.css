@@ -220,6 +220,9 @@ body {
 /* space paragraphs only where one follows another */
 .about p + p, .about blockquote { margin-top: 1em; }
 
+/* a full blank line between the quote and the syllable-count note */
+.about blockquote + p { margin-top: 2em; }
+
 .about .form {
   color: var(--hit);
   line-height: 1.5;
