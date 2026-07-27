@@ -25,6 +25,7 @@ const flood     = document.getElementById('flood');
 const TARGETS = [5, 7, 5, 7, 7];
 const STORE_KEY = 'tanka-time-doc';
 const THEME_KEY = 'tanka-time-theme';
+const TOTAL_KEY = 'tanka-time-total';
 const THEMES = { room: '#0a0c0a', paper: '#f6f1e3', dusk: '#171321' };
 
 /* ---------- editor structure ---------- */
@@ -103,7 +104,7 @@ function refresh() {
   const frag = document.createDocumentFragment();
   const rows = [...editor.children];
   const blank = rows.map(d => !d.textContent.replace(/\u00a0/g, ' ').trim());
-  let pos = 0, total = 0, any = false;
+  let pos = 0, total = 0, words = 0, any = false;
 
   for (let i = 0; i < rows.length; i++) {
     if (blank[i]) {
@@ -120,8 +121,10 @@ function refresh() {
       continue;
     }
     any = true;
-    const n = countLine(rows[i].textContent.replace(/\u00a0/g, ' '));
+    const text = rows[i].textContent.replace(/\u00a0/g, ' ');
+    const n = countLine(text);
     total += n;
+    words += countWords(text);
     const target = pos < TARGETS.length ? TARGETS[pos] : null;
     const span = document.createElement('span');
     span.textContent = n;
@@ -140,9 +143,57 @@ function refresh() {
   if (any) gutter.replaceChildren(frag);
   else gutter.replaceChildren();
   doc.classList.toggle('empty', !any);
-  totalEl.textContent = total ? `${total} syllable${total === 1 ? '' : 's'}` : '';
+  totals = { syllables: total, words };
+  renderTotal();
   scheduleSave();
 }
+
+/* ---------- the total: syllables · words · timer ---------- */
+
+// the number at the bottom is secretly a button: a click cycles it
+// through three faces. The chosen face is remembered like the theme.
+const MODES = ['syllables', 'words', 'timer'];
+let totalMode = MODES.includes(localStorage.getItem(TOTAL_KEY))
+  ? localStorage.getItem(TOTAL_KEY) : 'syllables';
+let totals = { syllables: 0, words: 0 };
+
+// the timer counts this sitting only: it starts when the page loads,
+// so a refresh or a fresh launch starts it over. No clock state is
+// saved anywhere — that keeps it honest and the display small.
+const SESSION_T0 = Date.now();
+let clockTimer = 0;
+
+// 3:07, then 1:02:07 past the hour — never wider than a few characters
+function fmtClock(ms) {
+  const s = Math.floor(ms / 1000);
+  const pad = n => String(n).padStart(2, '0');
+  const h = Math.floor(s / 3600);
+  return (h ? h + ':' + pad(Math.floor(s / 60) % 60) : Math.floor(s / 60))
+    + ':' + pad(s % 60);
+}
+
+function renderTotal() {
+  if (totalMode === 'timer') {
+    totalEl.textContent = fmtClock(Date.now() - SESSION_T0);
+    return;
+  }
+  const n = totals[totalMode];
+  const noun = totalMode === 'words' ? 'word' : 'syllable';
+  totalEl.textContent = n ? `${n} ${noun}${n === 1 ? '' : 's'}` : '';
+}
+
+function setTotalMode(mode) {
+  totalMode = mode;
+  try { localStorage.setItem(TOTAL_KEY, mode); } catch (_) {}
+  // the once-a-second tick exists only while the timer face is up
+  clearInterval(clockTimer);
+  clockTimer = totalMode === 'timer' ? setInterval(renderTotal, 1000) : 0;
+  renderTotal();
+}
+
+totalEl.addEventListener('click', () => {
+  setTotalMode(MODES[(MODES.indexOf(totalMode) + 1) % MODES.length]);
+});
 
 /* ---------- persistence ---------- */
 
@@ -418,7 +469,7 @@ about.addEventListener('close', focusEnd);
 
 // keep the caret where it is when a toolbar button is clicked,
 // and acknowledge every press with a tick where haptics exist
-for (const btn of [clearBtn, exportBtn, themeBtn, fsBtn, aboutBtn]) {
+for (const btn of [clearBtn, exportBtn, themeBtn, fsBtn, aboutBtn, totalEl]) {
   btn.addEventListener('mousedown', e => e.preventDefault());
   btn.addEventListener('pointerdown', () => buzz(10));
 }
@@ -439,6 +490,7 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) save(
 applyTheme(THEMES[localStorage.getItem(THEME_KEY)] ? localStorage.getItem(THEME_KEY) : 'room');
 setText(localStorage.getItem(STORE_KEY) || '');
 refresh();
+setTotalMode(totalMode); // arms the timer tick if that face was saved
 editor.focus();
 // custom fonts change line metrics; re-pin the numbers once they load
 document.fonts?.ready.then(refresh);

@@ -88,7 +88,14 @@ function countLine(text) {
   return total;
 }
 
+// same tokenization, simpler question: how many words?
+function countWords(text) {
+  let n = 0;
+  for (const token of text.split(/[^a-zA-Z'’]+/)) if (token) n++;
+  return n;
+}
+
 // Node (the build tool) sees module; the browser doesn't and skips this
 if (typeof module !== 'undefined') {
-  module.exports = { SPECIAL, DICT, loadSyllableDict, countWord, countLine };
+  module.exports = { SPECIAL, DICT, loadSyllableDict, countWord, countLine, countWords };
 }
