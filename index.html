@@ -36,7 +36,8 @@
   <div class="tools">
     <button id="context" class="tool" title="Context" aria-label="About Tanka Time">?</button>
   </div>
-  <span id="total" class="total"></span>
+  <!-- the total is secretly a button: click cycles syllables → words → timer -->
+  <button id="total" class="total" aria-label="Cycle count: syllables, words, timer"></button>
   <div class="tools">
     <button id="clear" class="tool clear" title="Hold 3 seconds to clear"
             aria-label="Clear everything — hold for three seconds">clear</button>

@@ -154,8 +154,25 @@ body {
   pointer-events: auto;
 }
 
-/* the count sits centered in the open water between ? and the tools */
-.bar > .total { flex: 1; text-align: center; }
+/* the count sits centered in the open water between ? and the tools.
+   It's secretly a button (click cycles syllables → words → timer), so
+   it dresses as plain text and only brightens on hover */
+.bar > .total {
+  flex: 1;
+  text-align: center;
+  background: none;
+  border: 0;
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+  pointer-events: auto; /* the bar ignores clicks; opt back in */
+  padding: .2rem 0;
+  font-variant-numeric: tabular-nums; /* the timer ticks without wobble */
+  transition: color .25s ease;
+}
+
+.bar > .total:hover { color: var(--ink); }
 
 /* buttons dressed down to quiet text glyphs */
 .tool {
