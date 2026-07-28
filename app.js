@@ -185,6 +185,10 @@ function renderTotal() {
 function setTotalMode(mode) {
   totalMode = mode;
   try { localStorage.setItem(TOTAL_KEY, mode); } catch (_) {}
+  // the margin numbers are syllable counts; on the other faces they'd
+  // contradict the total, so the gutter rests until syllables return.
+  // (the native hidden attribute is display:none without any CSS)
+  gutter.hidden = totalMode !== 'syllables';
   // the once-a-second tick exists only while the timer face is up
   clearInterval(clockTimer);
   clockTimer = totalMode === 'timer' ? setInterval(renderTotal, 1000) : 0;
