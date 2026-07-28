@@ -180,7 +180,7 @@ body {
   border: 0;
   color: var(--dim);
   font: inherit;
-  font-size: .85rem;
+  font-size: .935rem;
   cursor: pointer;
   opacity: .6;
   padding: .2rem .45rem;
@@ -212,7 +212,7 @@ body {
   pointer-events: none;
 }
 
-.fs { font-size: 1.05rem; }
+.fs { font-size: 1.155rem; }
 
 /* the context card: same quiet room, one step removed */
 .about {
