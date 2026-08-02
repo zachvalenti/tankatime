@@ -237,13 +237,20 @@ body {
 /* space paragraphs only where one follows another */
 .about p + p, .about blockquote { margin-top: 1em; }
 
-/* a full blank line between the quote and the syllable-count note */
-.about blockquote + p { margin-top: 2em; }
+/* a full blank line before each section header */
+.about .section { margin-top: 2em; }
 
 .about .form {
   color: var(--hit);
   line-height: 1.5;
   font-variant-numeric: tabular-nums;
+}
+
+/* the sheet's only links live in this card; tint them like a met target */
+.about a {
+  color: var(--hit);
+  text-decoration-color: var(--dim);
+  text-underline-offset: .2em;
 }
 
 .about blockquote {
