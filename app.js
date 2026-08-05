@@ -83,35 +83,172 @@ function normalize() {
 
 // contenteditable pads with non-breaking spaces ( ); treat them
 // as ordinary spaces everywhere text leaves the editor
+function plain(text) {
+  return text.replace(/\u00a0/g, ' ');
+}
+
 function getText() {
-  return [...editor.children]
-    .map(d => d.textContent.replace(/\u00a0/g, ' '))
-    .join('\n');
+  return [...editor.children].map(d => plain(d.textContent)).join('\n');
 }
 
 function setText(text) {
   editor.replaceChildren(...text.split('\n').map(makeLine));
 }
 
+/* ---------- markdown decoration ---------- */
+
+/* Each line is painted with <span>s naming what its Markdown means —
+ * character for character, so the line's textContent still reads back
+ * as plain source and getText() never learns any of this happened.
+ *
+ * The hazard in decorating a contenteditable is rebuilding a line on
+ * every keystroke: it shoves the caret about, and it drops the edit
+ * outside the browser's own undo. So a line is repainted only when its
+ * runs actually change shape. Typing a letter into the middle of a bold
+ * word leaves the runs identical, and the browser's edit simply stands.
+ */
+
+// an IME composition is a half-typed character; rebuilding underneath
+// one destroys it, so decoration waits for the end
+let composing = false;
+
+function runNode(run) {
+  if (!run.cls) return document.createTextNode(run.text);
+  const s = document.createElement('span');
+  s.className = run.cls;
+  s.textContent = run.text;
+  return s;
+}
+
+// what a line shows now, in the shape mdRuns() describes it: adjacent
+// nodes of one class merged, empties and the trailing <br> dropped — so
+// the two can be compared without trusting the browser to have kept its
+// nodes tidy, or to have spelled its spaces the same way
+function currentRuns(line) {
+  const runs = [];
+  for (const n of line.childNodes) {
+    if (n.nodeType === 1 && n.tagName === 'BR') continue;
+    const cls = n.nodeType === 1 ? n.className : '';
+    const text = plain(n.textContent);
+    if (!text) continue;
+    const last = runs[runs.length - 1];
+    if (last && last.cls === cls) last.text += text;
+    else runs.push({ text, cls });
+  }
+  return runs;
+}
+
+function sameRuns(a, b) {
+  return a.length === b.length &&
+    a.every((r, i) => r.cls === b[i].cls && r.text === b[i].text);
+}
+
+// an empty line is a lone <br> — contenteditable's way of holding height
+function isBare(line) {
+  return line.childNodes.length === 1 && line.firstChild.nodeName === 'BR';
+}
+
+// The caret's place in a line, counted in characters rather than nodes,
+// so it survives the line being rebuilt underneath it.
+function offsetIn(line, node, offset) {
+  // a selection anchored on the line itself counts children, not text
+  if (node === line) {
+    let n = 0;
+    for (let i = 0; i < offset && i < line.childNodes.length; i++)
+      n += line.childNodes[i].textContent.length;
+    return n;
+  }
+  let n = 0;
+  const walk = document.createTreeWalker(line, NodeFilter.SHOW_TEXT);
+  for (let t; (t = walk.nextNode()); ) {
+    if (t === node) return n + offset;
+    n += t.data.length;
+  }
+  return n;
+}
+
+// null when there's nothing to hold on to: no caret, a caret in another
+// line, or a selection mid-drag — decoration catches up on the next edit
+function caretOffset(line) {
+  const sel = document.getSelection();
+  if (!sel || !sel.rangeCount || !sel.isCollapsed) return null;
+  const node = sel.focusNode;
+  if (!node || node === editor || !line.contains(node)) return null;
+  return offsetIn(line, node, sel.focusOffset);
+}
+
+// the inverse: a character offset back into the [node, offset] pair the
+// Selection API wants
+function offsetToPoint(line, off) {
+  const walk = document.createTreeWalker(line, NodeFilter.SHOW_TEXT);
+  let n = 0, last = null;
+  for (let t; (t = walk.nextNode()); ) {
+    if (off <= n + t.data.length) return [t, off - n];
+    n += t.data.length;
+    last = t;
+  }
+  return last ? [last, last.data.length] : [line, 0];
+}
+
+function placeCaret(line, off) {
+  const [node, i] = offsetToPoint(line, off);
+  try { document.getSelection().collapse(node, i); } catch (_) {}
+}
+
+// one line: name its shape for style.css, then repaint it if — and only
+// if — the runs have moved
+function decorate(line) {
+  if (composing) return;
+  const text = plain(line.textContent);
+  const cls = mdBlock(text).cls;
+  if (line.className !== cls) line.className = cls;
+
+  const want = mdRuns(text);
+  if (want.length ? sameRuns(want, currentRuns(line)) : isBare(line)) return;
+
+  const off = caretOffset(line);
+  line.replaceChildren(...(want.length
+    ? want.map(runNode)
+    : [document.createElement('br')]));
+  if (off !== null) placeCaret(line, off);
+}
+
 /* ---------- render ---------- */
 
-// one pass rebuilds every margin number and the total. The new spans
-// collect in a DocumentFragment first so the page reflows once, and
-// each span is pinned to its line's offsetTop — the gutter is a
-// separate absolutely-positioned column that shadows the editor
+// one pass repaints the Markdown, rebuilds every margin number, and
+// retotals. The new spans collect in a DocumentFragment first so the
+// page reflows once, and each span is pinned to its line's offsetTop —
+// the gutter is a separate absolutely-positioned column that shadows
+// the editor
 function refresh() {
   normalize();
-  const frag = document.createDocumentFragment();
   const rows = [...editor.children];
-  const blank = rows.map(d => !d.textContent.replace(/\u00a0/g, ' ').trim());
+  // decorate before measuring: a heading stands taller than a line of
+  // poem, so every offsetTop read below has to be the settled one
+  for (const row of rows) decorate(row);
+
+  const frag = document.createDocumentFragment();
+  const src = rows.map(d => plain(d.textContent));
+  const blank = src.map(t => !t.trim());
+  const head = src.map(mdIsHeading);
   let pos = 0, total = 0, words = 0, any = false;
 
   for (let i = 0; i < rows.length; i++) {
+    // a title stands outside the form: nothing in the margin, no
+    // syllables in the total, and a fresh tanka opens beneath it
+    if (head[i]) {
+      any = true;
+      words += countWords(src[i]);
+      pos = 0;
+      continue;
+    }
     if (blank[i]) {
-      // two blank lines in a row — or one once the five slots are
-      // filled — start a new tanka; a lone blank inside an unfinished
-      // tanka keeps its slot and counts as 0
-      if (blank[i - 1] || blank[i + 1] || pos >= TARGETS.length) { pos = 0; continue; }
+      // two blank lines in a row, a blank alongside a title, or one
+      // once the five slots are filled — each starts a new tanka; a
+      // lone blank inside an unfinished tanka keeps its slot and
+      // counts as 0
+      if (blank[i - 1] || blank[i + 1] || head[i - 1] || head[i + 1] ||
+          pos >= TARGETS.length) { pos = 0; continue; }
       const span = document.createElement('span');
       span.textContent = '0';
       span.style.top = rows[i].offsetTop + 'px';
@@ -121,7 +258,7 @@ function refresh() {
       continue;
     }
     any = true;
-    const text = rows[i].textContent.replace(/\u00a0/g, ' ');
+    const text = src[i];
     const n = countLine(text);
     total += n;
     words += countWords(text);
@@ -213,10 +350,205 @@ function save() {
   try { localStorage.setItem(STORE_KEY, getText()); } catch (_) {}
 }
 
+/* ---------- undo ---------- */
+
+/* The app keeps its own history, and it has to.
+ *
+ * A browser's undo remembers the nodes it edited. Decoration rewrites
+ * those nodes — the same characters, new spans — so by the time you
+ * press ⌘Z the browser's record points at nodes that have been replaced,
+ * and it either does nothing or pastes the old text back alongside the
+ * new. There is no way to both repaint a contenteditable and keep the
+ * native stack; every editor that highlights as you type ends up here.
+ *
+ * So: a list of whole-document snapshots instead. Text and caret only —
+ * the DOM is rebuilt from the text, which is the same thing a reload
+ * does, and the decoration follows from it.
+ */
+
+const HISTORY_MAX = 200;
+let history = [];   // steps behind us, oldest first
+let future = [];    // steps undone, most recent last
+let base = { text: '', caret: 0 };
+let commitTimer = 0;
+
+// the caret as a single offset into getText(), newlines counted — the
+// one coordinate that still means something after the DOM is rebuilt
+function caretPoint() {
+  const sel = document.getSelection();
+  if (!sel || !sel.rangeCount) return 0;
+  const p = pointAt(sel.focusNode, sel.focusOffset, false);
+  if (!p) return 0;
+  let n = 0;
+  for (const row of editor.children) {
+    if (row === p[0]) return n + p[1];
+    n += plain(row.textContent).length + 1;
+  }
+  return n;
+}
+
+function placeAt(off) {
+  const rows = [...editor.children];
+  let n = 0;
+  for (const row of rows) {
+    const len = plain(row.textContent).length;
+    if (off <= n + len) { placeCaret(row, off - n); return; }
+    n += len + 1;
+  }
+  const end = rows[rows.length - 1];
+  if (end) placeCaret(end, plain(end.textContent).length);
+}
+
+const snapshot = () => ({ text: getText(), caret: caretPoint() });
+
+// A run of ordinary typing is one step, closed when the typing pauses —
+// coarser than a browser's per-character stack, and steadier to use.
+function commit() {
+  clearTimeout(commitTimer);
+  const now = snapshot();
+  if (now.text === base.text) { base = now; return; }
+  history.push(base);
+  if (history.length > HISTORY_MAX) history.shift();
+  future.length = 0; // a fresh edit abandons whatever was undone
+  base = now;
+}
+
+function noteChange() {
+  clearTimeout(commitTimer);
+  commitTimer = setTimeout(commit, 500);
+}
+
+function restore(state) {
+  setText(state.text);
+  refresh();
+  placeAt(state.caret);
+  base = snapshot();
+}
+
+function undo() {
+  commit(); // fold any typing still in progress into a step of its own
+  if (!history.length) return;
+  future.push(snapshot());
+  restore(history.pop());
+}
+
+function redo() {
+  if (!future.length) return;
+  clearTimeout(commitTimer);
+  history.push(snapshot());
+  restore(future.pop());
+}
+
 /* ---------- events ---------- */
 
-// 'input' fires on every edit, whatever caused it — keys, drag, undo
-editor.addEventListener('input', refresh);
+// 'input' fires on every edit, whatever caused it — keys, drag, paste
+editor.addEventListener('input', () => { refresh(); noteChange(); });
+
+// the browser's own undo can't survive decoration (see above), so take
+// the keys and answer them from our history instead
+editor.addEventListener('keydown', e => {
+  if (!(e.metaKey || e.ctrlKey)) return;
+  const k = e.key.toLowerCase();
+  if (k !== 'z' && k !== 'y') return;
+  e.preventDefault();
+  // ⇧⌘Z on a Mac, Ctrl+Y on Windows — both mean redo
+  if (k === 'y' || e.shiftKey) redo();
+  else undo();
+});
+
+// and the same again for undo reached another way — a trackpad gesture,
+// or the editing menu — which arrives as an input type rather than a key
+editor.addEventListener('beforeinput', e => {
+  if (e.inputType !== 'historyUndo' && e.inputType !== 'historyRedo') return;
+  e.preventDefault();
+  if (e.inputType === 'historyUndo') undo();
+  else redo();
+});
+
+// an IME composition is a character still being spelled out; let it
+// finish before the line is repainted underneath it
+editor.addEventListener('compositionstart', () => { composing = true; });
+editor.addEventListener('compositionend', () => { composing = false; refresh(); });
+
+/* ---------- ⌘B, ⌘I, ⌘U ---------- */
+
+// Without this handler the browser answers these itself and injects
+// <b>/<i>/<u> into the line — markup that looks right until getText()
+// flattens it away on the next save. Here they write Markdown instead.
+editor.addEventListener('keydown', e => {
+  if (!(e.metaKey || e.ctrlKey) || e.altKey) return;
+  const mark = MD_MARKS[e.key.toLowerCase()];
+  if (!mark) return;
+  e.preventDefault();
+  toggleMark(mark);
+});
+
+// the line div a node sits in, or null for anything outside the editor
+function lineOf(node) {
+  if (!node || node === editor || !editor.contains(node)) return null;
+  let n = node;
+  while (n.parentNode && n.parentNode !== editor) n = n.parentNode;
+  return n.parentNode === editor ? n : null;
+}
+
+// resolve one end of a selection to [line, character offset]. A range
+// can also be anchored on the editor itself — select-all does that —
+// in which case it lands on the first or last line whole
+function pointAt(container, offset, atEnd) {
+  if (container === editor) {
+    const kids = [...editor.children];
+    const row = atEnd ? kids[Math.max(0, Math.min(offset, kids.length) - 1)]
+                      : kids[Math.min(offset, kids.length - 1)];
+    return row ? [row, atEnd ? plain(row.textContent).length : 0] : null;
+  }
+  const row = lineOf(container);
+  return row ? [row, offsetIn(row, container, offset)] : null;
+}
+
+// Marks apply a line at a time. That isn't only the simpler path —
+// Markdown emphasis can't cross a line break, so a mark per line is
+// what any later reader of the source would need anyway.
+function toggleMark(mark) {
+  const sel = document.getSelection();
+  if (!sel || !sel.rangeCount) return;
+  const r = sel.getRangeAt(0);
+  const start = pointAt(r.startContainer, r.startOffset, false);
+  const end = pointAt(r.endContainer, r.endOffset, true);
+  if (!start || !end) return;
+
+  const rows = [...editor.children];
+  const a = rows.indexOf(start[0]), b = rows.indexOf(end[0]);
+  if (a < 0 || b < 0 || b < a) return;
+
+  commit(); // close off whatever typing came before; the mark is its own step
+
+  // work out every line before touching any of them: the first edit
+  // invalidates the range the offsets came from
+  const jobs = [];
+  for (let i = a; i <= b; i++) {
+    const src = plain(rows[i].textContent);
+    // a blank line swept up by a multi-line selection is left alone,
+    // rather than handed a pair of marks with nothing between them
+    if (a !== b && !src.trim()) { jobs.push({ row: rows[i], src, text: src, s: 0, e: 0 }); continue; }
+    const s = i === a ? start[1] : 0;
+    const e = i === b ? end[1] : src.length;
+    jobs.push({ row: rows[i], src, ...mdToggle(src, s, e, mark) });
+  }
+
+  // back to front, so the offsets measured above stay true. Writing the
+  // line's text outright is safe here because the history above is ours,
+  // not the browser's — there is no native record left to disturb
+  for (let i = jobs.length - 1; i >= 0; i--) {
+    if (jobs[i].text !== jobs[i].src) jobs[i].row.textContent = jobs[i].text;
+  }
+
+  refresh();
+  const head = jobs[0], tail = jobs[jobs.length - 1];
+  const [n1, o1] = offsetToPoint(head.row, head.s);
+  const [n2, o2] = offsetToPoint(tail.row, tail.e);
+  try { sel.setBaseAndExtent(n1, o1, n2, o2); } catch (_) {}
+  commit(); // refresh() above already scheduled the save
+}
 
 // pasted content arrives as styled HTML; take the plain text instead
 // and rebuild it line by line through the same commands typing uses
@@ -257,11 +589,11 @@ fsBtn.addEventListener('click', () => {
 exportBtn.addEventListener('click', () => {
   const text = getText();
   if (!text.trim()) return;
-  const blob = new Blob([text + '\n'], { type: 'text/plain;charset=utf-8' });
+  const blob = new Blob([text + '\n'], { type: 'text/markdown;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `tanka-${new Date().toISOString().slice(0, 10)}.txt`;
+  a.download = `tanka-${new Date().toISOString().slice(0, 10)}.md`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 });
@@ -404,6 +736,7 @@ function startHold() {
     water.fall();
     setText('');
     refresh();
+    commit(); // a three-second hold is deliberate, but still undoable
     save();
     editor.focus();
     buzz([40, 60, 40]);
@@ -494,6 +827,8 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) save(
 applyTheme(THEMES[localStorage.getItem(THEME_KEY)] ? localStorage.getItem(THEME_KEY) : 'room');
 setText(localStorage.getItem(STORE_KEY) || '');
 refresh();
+// the restored draft is where history starts; there is nothing behind it
+base = snapshot();
 setTotalMode(totalMode); // arms the timer tick if that face was saved
 editor.focus();
 // custom fonts change line metrics; re-pin the numbers once they load

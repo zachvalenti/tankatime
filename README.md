@@ -7,8 +7,16 @@ A quiet room for tanka. WriteRoom inspired full-screen writing with a syllable c
 - Targets follow line position and re-flow as you edit; an empty line
   keeps its slot and shows a 0. Two blank lines in a row — or one after a
   finished five-line verse — start a new tanka and reset the targets.
+- Markdown, written the way Ulysses writes it: the marks stay on the page,
+  dimmed, and the text around them takes its styling as you type. `# ` (with
+  the space — `#hashtag` stays a word) makes a title, which sits outside the
+  form: no count in the margin, and the tanka below it starts again at five.
+  A blank line beside a title is breathing room, not a slot. `**bold**`,
+  `*italic*`, `__underline__`, `> quotes`, `- lists`; ⌘/Ctrl+B, I and U
+  toggle the marks on a selection, on the word under the cursor, or on
+  nothing at all.
 - Everything autosaves to the browser (localStorage). No accounts, no cloud.
-- `txt` exports the page as a plain-text file; `◐` cycles themes
+- `md` exports the page as a Markdown file; `◐` cycles themes
   (green room → creme paper → dusk).
 - `?` (bottom left) opens a short note on the tanka form and why the
   app exists.
@@ -38,6 +46,8 @@ works as a plain page.)
 
 - `index.html`, `style.css`, `app.js` — the whole app, no dependencies
 - `count.js` — syllable counting: hand overrides → dictionary → heuristic
+- `md.js` — the Markdown grammar: what a line is, where the marks fall,
+  and what ⌘B/I/U do to a line of text. Pure strings, no DOM
 - `syllables.json` — generated word list: the CMU dictionary words the
   heuristic would get wrong (don't edit by hand)
 - `tools/build-syllables.mjs` — regenerates `syllables.json`; see its
