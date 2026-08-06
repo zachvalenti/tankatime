@@ -70,6 +70,10 @@ const MD_INLINE = new RegExp(
   '|(?<u>__(?=\\S).*?\\S__)' +
   '|(?<em>\\*(?=\\S)[^*]*?\\S\\*)', 'g');
 
+// every class mdRuns() hands out. app.js keeps this to tell its own
+// decoration apart from markup a browser invented on its own
+const MD_CLASSES = ['md-mark', 'md-strong', 'md-em', 'md-u'];
+
 // Runs are flat: the outermost mark wins, and a nested one shows as
 // ordinary dim marks inside it. Flat runs are what let app.js compare
 // what a line *should* look like against what it *does* look like, run
@@ -163,5 +167,5 @@ function mdToggle(text, s, e, mark) {
 // Node (a test run, or a future build tool) sees module; the browser
 // doesn't and skips this
 if (typeof module !== 'undefined') {
-  module.exports = { mdBlock, mdIsHeading, mdRuns, mdToggle, MD_MARKS };
+  module.exports = { mdBlock, mdIsHeading, mdRuns, mdToggle, MD_MARKS, MD_CLASSES };
 }
