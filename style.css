@@ -16,6 +16,7 @@
   --dim:  #3d5c46;   /* quiet chrome: counts, buttons, borders */
   --hit:  #4ade80;   /* a line that meets its target */
   --over: #d98a62;   /* a line that runs past it */
+  --flag: #e05252;   /* a word from outside the thousand */
   --tide: #58a6c8;   /* the clear-hold water */
   --sel:  rgba(74, 222, 128, .25);
   --fs:   clamp(17px, 2.4vw, 21px); /* fluid type with a floor and ceiling */
@@ -29,6 +30,7 @@
   --dim:  #b3a789;
   --hit:  #2f7d46;
   --over: #c05f33;
+  --flag: #c0392b;
   --tide: #3d7ea6;
   --sel:  rgba(47, 125, 70, .22);
   color-scheme: light;
@@ -41,6 +43,7 @@
   --dim:  #5d5372;
   --hit:  #ffcf6e;
   --over: #e2725b;
+  --flag: #ef6f6f;
   --tide: #6ea8d8;
   --sel:  rgba(230, 201, 143, .25);
 }
@@ -137,6 +140,12 @@ body {
 
 .editor > :not(.open) .md-mark,
 .editor > :not(.open) .md-hash { display: none; }
+
+/* a word the thousand doesn't hold */
+.md-odd { color: var(--flag); }
+
+/* what the first line asked for: present, quiet, unexplained */
+.editor > .md-mode { color: var(--dim); }
 
 /* Headings scale up but have to land back on the same 2em line grid the
    gutter numbers are pinned to. A line-height in em would resolve
@@ -251,6 +260,10 @@ body {
   height: 100%;
   pointer-events: none;
 }
+
+/* the ? is the only way into the card; let it sit a little plainer and
+   a little larger than the chrome it shares a bar with */
+#context { font-size: 1.1rem; opacity: .85; }
 
 .fs { font-size: 1.155rem; }
 
