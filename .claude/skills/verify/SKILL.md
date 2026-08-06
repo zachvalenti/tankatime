@@ -49,7 +49,21 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
   (`md-h1`, `md-quote`, `md-list`), the marks are `.md-mark` spans inside.
   `getText()` must round-trip the source exactly — decoration is only paint.
 - Undo is the app's own (`app.js`), not the browser's — decoration rewrites
-  the nodes a native undo would need. Steps coalesce on a 500 ms pause, and
-  each ⌘B/I/U toggle is its own step. Worth re-checking after any change to
-  `decorate()`: type, toggle a mark, then undo/redo and confirm the text
-  doesn't duplicate.
+  the nodes a native undo would need. A step ends when the edit kind changes
+  (typing → deleting), when the caret moved between edits, on a word
+  boundary, on any ⌘B/I/U toggle, or after a 500 ms pause. Worth re-checking
+  after any change to `decorate()`: type, toggle a mark, then undo/redo and
+  confirm the text doesn't duplicate.
+- The **open line** is the one holding the caret; only it shows its `.md-mark`
+  and `.md-hash` spans (`.editor > :not(.open)` hides them). Two traps, both
+  hit once already:
+  - `openLine` must be read from the live selection inside `refresh()`, never
+    from the last `selectionchange` — that event lands a beat late, and
+    painting the caret's own line as closed hides the span the caret sits in.
+    A caret cannot live in `display:none`, so Chrome drops it to the editor
+    and the next character lands outside every line div.
+  - `selectionchange` can fire mid-edit, so its handler must only toggle the
+    class and call `measure()`. Calling `refresh()` there runs `normalize()`
+    over a DOM the browser hasn't finished building, which reorders lines.
+  - Drive typing with *no* pauses between lines when testing this; a
+    `waitForTimeout` between keystrokes hides both races.

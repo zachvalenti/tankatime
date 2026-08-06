@@ -120,15 +120,23 @@ body {
 
 /* Markdown.
  *
- * The marks themselves stay on the page, dimmed to the same quiet as the
- * chrome — Ulysses' habit rather than Obsidian's, where they vanish off
- * the line you're on. Nothing is hidden, so what you see is what the
- * file holds, and the caret never has to step over a character that
- * isn't there. */
-.md-mark   { color: var(--dim); }
+ * Both habits at once: Ulysses on the line you're writing — the marks
+ * there, dimmed to the same quiet as the chrome, so nothing shifts under
+ * the caret — and Obsidian everywhere else, where they step out of the
+ * way and the page reads as the poem rather than as its notation.
+ *
+ * The marks that go are the ones that decorate words, plus the hashes of
+ * a heading, which its size announces well enough on its own. The ones
+ * that stay are a line's own shape: a list stripped of its bullet reads
+ * as broken, not tidy. Either way the characters are only hidden, never
+ * removed — they are still in the file and still in anything you copy. */
+.md-mark, .md-hash, .md-prefix { color: var(--dim); }
 .md-strong { font-weight: 700; }
 .md-em     { font-style: italic; }
 .md-u      { text-decoration: underline; text-underline-offset: .2em; }
+
+.editor > :not(.open) .md-mark,
+.editor > :not(.open) .md-hash { display: none; }
 
 /* Headings scale up but have to land back on the same 2em line grid the
    gutter numbers are pinned to. A line-height in em would resolve

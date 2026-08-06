@@ -112,6 +112,24 @@ function setText(text) {
 // one destroys it, so decoration waits for the end
 let composing = false;
 
+/* The open line: the one the caret rests on. Its marks show; every other
+ * line keeps them out of sight, so a page you aren't touching reads as
+ * the poem rather than as its notation. Only paint — the text of every
+ * line is the same whichever one is open, and so is anything you copy.
+ *
+ * This is read from the selection rather than remembered, and that is
+ * load-bearing. 'selectionchange' arrives a beat late, so a line that
+ * has just taken the caret can still look closed when it is repainted —
+ * and a caret cannot live inside display:none. Chrome drops it to the
+ * editor instead, and the next character lands outside every line.
+ */
+let openLine = null;
+
+function caretLine() {
+  const sel = document.getSelection();
+  return sel && sel.rangeCount ? lineOf(sel.focusNode) : null;
+}
+
 function runNode(run) {
   if (!run.cls) return document.createTextNode(run.text);
   const s = document.createElement('span');
@@ -214,7 +232,10 @@ function placeCaret(line, off) {
 function decorate(line) {
   if (composing) return;
   const text = plain(line.textContent);
-  const cls = mdBlock(text).cls;
+  // the block class names the line's shape; 'open' rides along with it,
+  // because writing className outright would otherwise wipe it
+  const cls = [mdBlock(text).cls, line === openLine ? 'open' : '']
+    .filter(Boolean).join(' ');
   if (line.className !== cls) line.className = cls;
 
   const want = mdRuns(text);
@@ -229,18 +250,40 @@ function decorate(line) {
 
 /* ---------- render ---------- */
 
-// one pass repaints the Markdown, rebuilds every margin number, and
-// retotals. The new spans collect in a DocumentFragment first so the
-// page reflows once, and each span is pinned to its line's offsetTop —
-// the gutter is a separate absolutely-positioned column that shadows
-// the editor
+// one pass repaints the Markdown and then remeasures. Kept apart
+// because a caret moving between lines needs the second half only —
+// and calling the first half at that moment would have normalize()
+// tidying a DOM the browser is still in the middle of building.
 function refresh() {
   normalize();
   const rows = [...editor.children];
+  // ask where the caret is now rather than trusting the last event to
+  // have told us — see the note on openLine
+  openLine = caretLine();
   // decorate before measuring: a heading stands taller than a line of
   // poem, so every offsetTop read below has to be the settled one
   for (const row of rows) decorate(row);
+  measure(rows);
+}
 
+// the caret moved on its own — no edit, so nothing needs repainting
+// beyond which line wears the class
+function openCaretLine() {
+  const row = caretLine();
+  if (row === openLine) return;
+  openLine?.classList.remove('open');
+  row?.classList.add('open');
+  openLine = row;
+  // marks appearing widen the line they are on, which can shift every
+  // number below it
+  measure([...editor.children]);
+}
+
+// the margin numbers and the total. The new spans collect in a
+// DocumentFragment first so the page reflows once, and each is pinned to
+// its line's offsetTop — the gutter is a separate absolutely-positioned
+// column that shadows the editor. Reads the editor, never writes to it.
+function measure(rows) {
   const frag = document.createDocumentFragment();
   const src = rows.map(d => plain(d.textContent));
   const blank = src.map(t => !t.trim());
@@ -415,8 +458,8 @@ function placeAt(off) {
 
 const snapshot = () => ({ text: getText(), caret: caretPoint() });
 
-// A run of ordinary typing is one step, closed when the typing pauses —
-// coarser than a browser's per-character stack, and steadier to use.
+// A run of ordinary editing is one step. What ends a run is the question
+// below; this just closes whatever is open.
 function commit() {
   clearTimeout(commitTimer);
   const now = snapshot();
@@ -427,16 +470,54 @@ function commit() {
   base = now;
 }
 
+// the backstop: a run also ends when the typing simply stops
 function noteChange() {
   clearTimeout(commitTimer);
   commitTimer = setTimeout(commit, 500);
+}
+
+/* Where one step ends and the next begins.
+ *
+ * A clock alone makes for blocky undo: type a word, backspace over it,
+ * and both land in the same step. Lexical's history plugin answers this
+ * by classifying each change — insert a character, delete before the
+ * caret, delete after it, or something else entirely — and merging only
+ * when the kind matches the last one and the selection is where that
+ * edit left it; paste and cut are forced to "other" so they can never
+ * merge. Elapsed time is one signal among several rather than the only
+ * one. Same idea here, in a few lines rather than a dependency.
+ */
+function editKind(type) {
+  if (type === 'insertText') return 'insert';
+  if (type === 'deleteContentBackward') return 'back';
+  if (type === 'deleteContentForward') return 'forward';
+  // a paste, a cut, a new line, a drop: each stands on its own
+  return 'other';
+}
+
+let lastKind = '', lastCaret = -1;
+
+// after a jump — an undo, a mark, a clear — the next keystroke starts
+// fresh instead of merging into whatever came before it
+function resetRun() {
+  lastKind = '';
+  lastCaret = caretPoint();
+}
+
+function breaksRun(kind, caret, data) {
+  return kind === 'other'          // never merges
+    || kind !== lastKind           // typing became deleting, or changed direction
+    || caret !== lastCaret         // the caret was moved between edits
+    || (kind === 'insert' && /\s/.test(data || '')); // a finished word
 }
 
 function restore(state) {
   setText(state.text);
   refresh();
   placeAt(state.caret);
+  openCaretLine();
   base = snapshot();
+  resetRun();
 }
 
 function undo() {
@@ -455,8 +536,14 @@ function redo() {
 
 /* ---------- events ---------- */
 
-// 'input' fires on every edit, whatever caused it — keys, drag, paste
-editor.addEventListener('input', () => { refresh(); noteChange(); });
+// 'input' fires on every edit, whatever caused it — keys, drag, paste.
+// Recording where the edit left the caret is what lets the next one
+// notice that you moved somewhere else in between.
+editor.addEventListener('input', () => {
+  refresh();
+  lastCaret = caretPoint();
+  noteChange();
+});
 
 // the browser's own undo can't survive decoration (see above), so take
 // the keys and answer them from our history instead
@@ -470,14 +557,32 @@ editor.addEventListener('keydown', e => {
   else undo();
 });
 
-// and the same again for undo reached another way — a trackpad gesture,
-// or the editing menu — which arrives as an input type rather than a key
+// 'beforeinput' fires while the document still holds the state *before*
+// the edit — which is exactly the state a step being closed should end
+// on. Deciding here means commit() needs no shadow copy of the past.
 editor.addEventListener('beforeinput', e => {
-  if (e.inputType !== 'historyUndo' && e.inputType !== 'historyRedo') return;
-  e.preventDefault();
-  if (e.inputType === 'historyUndo') undo();
-  else redo();
+  // undo reached another way — a trackpad gesture, or the editing menu —
+  // arrives as an input type rather than a key
+  if (e.inputType === 'historyUndo' || e.inputType === 'historyRedo') {
+    e.preventDefault();
+    if (e.inputType === 'historyUndo') undo();
+    else redo();
+    return;
+  }
+  // an IME composition is one thought however many events it takes;
+  // compositionend closes it
+  if (e.inputType.startsWith('insertComposition')) return;
+  const kind = editKind(e.inputType);
+  if (lastKind && breaksRun(kind, caretPoint(), e.data)) commit();
+  lastKind = kind;
 });
+
+// Follow the caret from line to line. This fires on every caret move,
+// and it can fire in the middle of an edit the browser is still carrying
+// out — so it touches nothing but the class and the margin. No
+// normalize(), no repaint, no moving the caret: any of those would be
+// tidying a room while someone is still furnishing it.
+document.addEventListener('selectionchange', openCaretLine);
 
 // an IME composition is a character still being spelled out; let it
 // finish before the line is repainted underneath it
@@ -561,7 +666,9 @@ function toggleMark(mark) {
   const [n1, o1] = offsetToPoint(head.row, head.s);
   const [n2, o2] = offsetToPoint(tail.row, tail.e);
   try { sel.setBaseAndExtent(n1, o1, n2, o2); } catch (_) {}
+  openCaretLine();
   commit(); // refresh() above already scheduled the save
+  resetRun();
 }
 
 // pasted content arrives as styled HTML; take the plain text instead
@@ -584,6 +691,7 @@ function focusEnd() {
   r.collapse(false);
   sel.removeAllRanges();
   sel.addRange(r);
+  openCaretLine();
 }
 
 // click anywhere in the room to write
@@ -751,6 +859,7 @@ function startHold() {
     setText('');
     refresh();
     commit(); // a three-second hold is deliberate, but still undoable
+    resetRun();
     save();
     editor.focus();
     buzz([40, 60, 40]);
@@ -843,6 +952,7 @@ setText(localStorage.getItem(STORE_KEY) || '');
 refresh();
 // the restored draft is where history starts; there is nothing behind it
 base = snapshot();
+resetRun();
 setTotalMode(totalMode); // arms the timer tick if that face was saved
 editor.focus();
 // custom fonts change line metrics; re-pin the numbers once they load

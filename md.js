@@ -70,9 +70,21 @@ const MD_INLINE = new RegExp(
   '|(?<u>__(?=\\S).*?\\S__)' +
   '|(?<em>\\*(?=\\S)[^*]*?\\S\\*)', 'g');
 
+/* Three kinds of mark, because they don't all deserve the same fate on
+ * a line that isn't the one being written (style.css decides):
+ *
+ *   md-mark    ** * __ — decoration of words
+ *   md-hash    the #s of a heading — the size already says "title" more
+ *              plainly than the hashes do
+ *   md-prefix  > and - and 1. — these *are* the shape of the line, and
+ *              a list stripped of its bullet reads as broken, not tidy
+ *
+ * The rule of thumb: marks that decorate words are one thing, marks
+ * that are the shape of a line are another.
+ */
 // every class mdRuns() hands out. app.js keeps this to tell its own
 // decoration apart from markup a browser invented on its own
-const MD_CLASSES = ['md-mark', 'md-strong', 'md-em', 'md-u'];
+const MD_CLASSES = ['md-mark', 'md-hash', 'md-prefix', 'md-strong', 'md-em', 'md-u'];
 
 // Runs are flat: the outermost mark wins, and a nested one shows as
 // ordinary dim marks inside it. Flat runs are what let app.js compare
@@ -90,7 +102,9 @@ function mdRuns(text) {
   };
 
   const block = mdBlock(text);
-  if (block.prefix) push(text.slice(0, block.prefix), 'md-mark');
+  if (block.prefix)
+    push(text.slice(0, block.prefix),
+         block.kind === 'heading' ? 'md-hash' : 'md-prefix');
 
   const rest = text.slice(block.prefix);
   let at = 0;

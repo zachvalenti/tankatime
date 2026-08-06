@@ -7,14 +7,21 @@ A quiet room for tanka. WriteRoom inspired full-screen writing with a syllable c
 - Targets follow line position and re-flow as you edit; an empty line
   keeps its slot and shows a 0. Two blank lines in a row — or one after a
   finished five-line verse — start a new tanka and reset the targets.
-- Markdown, written the way Ulysses writes it: the marks stay on the page,
-  dimmed, and the text around them takes its styling as you type. `# ` (with
+- Markdown, live as you type. The marks show on the line you're writing —
+  dimmed, so nothing shifts under the caret — and step out of the way on
+  every other line, so a finished page reads as the poem rather than as its
+  notation. A list keeps its bullet and a quote its `>`; those are the shape
+  of the line rather than decoration on a word. `# ` (with
   the space — `#hashtag` stays a word) makes a title, which sits outside the
   form: no count in the margin, and the tanka below it starts again at five.
   A blank line beside a title is breathing room, not a slot. `**bold**`,
   `*italic*`, `__underline__`, `> quotes`, `- lists`; ⌘/Ctrl+B, I and U
   toggle the marks on a selection, on the word under the cursor, or on
   nothing at all.
+- Undo is the app's own, because highlighting as you type rewrites the very
+  nodes a browser's undo remembers. A run of typing is one step, ended when
+  the typing becomes deleting, when the caret moves elsewhere, when a word
+  is finished, or when the typing stops.
 - Everything autosaves to the browser (localStorage). No accounts, no cloud.
 - `md` exports the page as a Markdown file; `◐` cycles themes
   (green room → creme paper → dusk).
