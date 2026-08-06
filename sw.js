@@ -11,7 +11,7 @@
  * the new name and deletes the old cache on activate.
  */
 
-const CACHE = 'tanka-time-v29';
+const CACHE = 'tanka-time-v30';
 const ASSETS = [
   './',
   'index.html',
@@ -20,6 +20,7 @@ const ASSETS = [
   'count.js',
   'md.js',
   'syllables.json',
+  'tenhundred.txt',
   'manifest.webmanifest',
   'icon.svg',
   'icon-192.png',

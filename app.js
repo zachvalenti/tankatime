@@ -158,8 +158,12 @@ function currentRuns(line) {
     // up. Anything we didn't write is named FOREIGN instead, which no
     // run from mdRuns() can match — so the line gets repainted and the
     // stray markup swept out. Same spirit as normalize(), one level in.
+    // a flagged word carries two classes at once ("md-strong md-odd"),
+    // so this asks of each name in turn. Comparing the whole string would
+    // call every flagged word foreign and repaint its line forever.
     const cls = n.nodeType !== 1 ? ''
-      : n.tagName === 'SPAN' && n.attributes.length === 1 && MD_OURS.has(n.className)
+      : n.tagName === 'SPAN' && n.attributes.length === 1 &&
+        n.className.split(' ').every(c => MD_OURS.has(c))
         ? n.className : FOREIGN;
     const text = plain(n.textContent);
     if (!text) continue;
@@ -227,18 +231,43 @@ function placeCaret(line, off) {
   try { document.getSelection().collapse(node, i); } catch (_) {}
 }
 
+// ** and # and > are not words, so they pass through untouched; every
+// other run is cut into words and gaps, and a word the thousand doesn't
+// hold picks up md-odd alongside whatever it already wore.
+const NO_WORDS = new Set(['md-mark', 'md-hash', 'md-prefix']);
+
+function flagWords(runs) {
+  const out = [];
+  const push = (text, cls) => {
+    if (!text) return;
+    const last = out[out.length - 1];
+    if (last && last.cls === cls) last.text += text;
+    else out.push({ text, cls });
+  };
+  for (const r of runs) {
+    if (NO_WORDS.has(r.cls)) { push(r.text, r.cls); continue; }
+    // the capture group keeps the gaps, so the pieces still spell the run
+    for (const piece of r.text.split(/([A-Za-z\u2019']+)/)) {
+      const odd = /[A-Za-z]/.test(piece) && !isSimpleWord(piece);
+      push(piece, odd ? (r.cls ? r.cls + ' md-odd' : 'md-odd') : r.cls);
+    }
+  }
+  return out;
+}
+
 // one line: name its shape for style.css, then repaint it if — and only
 // if — the runs have moved
-function decorate(line) {
+function decorate(line, isMode, simple) {
   if (composing) return;
   const text = plain(line.textContent);
   // the block class names the line's shape; 'open' rides along with it,
   // because writing className outright would otherwise wipe it
-  const cls = [mdBlock(text).cls, line === openLine ? 'open' : '']
+  const cls = [isMode ? 'md-mode' : mdBlock(text).cls, line === openLine ? 'open' : '']
     .filter(Boolean).join(' ');
   if (line.className !== cls) line.className = cls;
 
-  const want = mdRuns(text);
+  // a mode line is not poem, so its words are nobody's business
+  const want = simple && !isMode ? flagWords(mdRuns(text)) : mdRuns(text);
   if (want.length ? sameRuns(want, currentRuns(line)) : isBare(line)) return;
 
   const off = caretOffset(line);
@@ -254,16 +283,24 @@ function decorate(line) {
 // because a caret moving between lines needs the second half only —
 // and calling the first half at that moment would have normalize()
 // tidying a DOM the browser is still in the middle of building.
+// the document as plain lines, plus whatever its first line asked for
+function readDoc() {
+  const rows = [...editor.children];
+  const src = rows.map(d => plain(d.textContent));
+  return { rows, src, modes: mdModes(src) };
+}
+
 function refresh() {
   normalize();
-  const rows = [...editor.children];
   // ask where the caret is now rather than trusting the last event to
   // have told us — see the note on openLine
   openLine = caretLine();
+  const { rows, src, modes } = readDoc();
   // decorate before measuring: a heading stands taller than a line of
   // poem, so every offsetTop read below has to be the settled one
-  for (const row of rows) decorate(row);
-  measure(rows);
+  for (let i = 0; i < rows.length; i++)
+    decorate(rows[i], i < modes.lines, modes.simple);
+  measure(rows, src, modes);
 }
 
 // the caret moved on its own — no edit, so nothing needs repainting
@@ -276,21 +313,25 @@ function openCaretLine() {
   openLine = row;
   // marks appearing widen the line they are on, which can shift every
   // number below it
-  measure([...editor.children]);
+  const { rows, src, modes } = readDoc();
+  measure(rows, src, modes);
 }
 
 // the margin numbers and the total. The new spans collect in a
 // DocumentFragment first so the page reflows once, and each is pinned to
 // its line's offsetTop — the gutter is a separate absolutely-positioned
 // column that shadows the editor. Reads the editor, never writes to it.
-function measure(rows) {
+function measure(rows, src, modes) {
   const frag = document.createDocumentFragment();
-  const src = rows.map(d => plain(d.textContent));
   const blank = src.map(t => !t.trim());
   const head = src.map(mdIsHeading);
   let pos = 0, total = 0, words = 0, any = false;
 
   for (let i = 0; i < rows.length; i++) {
+    // whatever the first line asked for is scaffolding, not poem: no
+    // number beside it and nothing of it in either total. 'any' still
+    // turns true so the 5·7·5·7·7 hint doesn't sit on top of it.
+    if (i < modes.lines) { any = true; continue; }
     // a title stands outside the form: nothing in the margin, no
     // syllables in the total, and a fresh tanka opens beneath it
     if (head[i]) {
@@ -304,8 +345,10 @@ function measure(rows) {
       // once the five slots are filled — each starts a new tanka; a
       // lone blank inside an unfinished tanka keeps its slot and
       // counts as 0
-      if (blank[i - 1] || blank[i + 1] || head[i - 1] || head[i + 1] ||
-          pos >= TARGETS.length) { pos = 0; continue; }
+      // in free mode there are no slots to hold, so a blank line is
+      // only ever a gap between one thought and the next
+      if (modes.free || blank[i - 1] || blank[i + 1] || head[i - 1] ||
+          head[i + 1] || pos >= TARGETS.length) { pos = 0; continue; }
       const span = document.createElement('span');
       span.textContent = '0';
       span.style.top = rows[i].offsetTop + 'px';
@@ -319,7 +362,10 @@ function measure(rows) {
     const n = countLine(text);
     total += n;
     words += countWords(text);
-    const target = pos < TARGETS.length ? TARGETS[pos] : null;
+    // free mode counts without judging: no target means no green and
+    // no amber, just the number, for an ear working outside 31
+    const target = modes.free ? null
+      : pos < TARGETS.length ? TARGETS[pos] : null;
     const span = document.createElement('span');
     span.textContent = n;
     span.style.top = rows[i].offsetTop + 'px';
@@ -709,7 +755,9 @@ fsBtn.addEventListener('click', () => {
 // no server to download from: build the .txt in memory as a Blob,
 // point a throwaway <a> at it, and click the link on the user's behalf
 exportBtn.addEventListener('click', () => {
-  const text = getText();
+  // whatever the first line asked for was for the room, not the file
+  const src = getText().split('\n');
+  const text = src.slice(mdModes(src).lines).join('\n').replace(/^\n+/, '');
   if (!text.trim()) return;
   const blob = new Blob([text + '\n'], { type: 'text/markdown;charset=utf-8' });
   const url = URL.createObjectURL(blob);
@@ -965,6 +1013,13 @@ document.fonts?.ready.then(refresh);
 fetch('syllables.json')
   .then(r => (r.ok ? r.json() : Promise.reject(new Error(r.status))))
   .then(data => { loadSyllableDict(data); refresh(); })
+  .catch(() => {});
+
+// the thousand words, on the same terms: data fetched after first paint,
+// and until it lands nothing is marked
+fetch('tenhundred.txt')
+  .then(r => (r.ok ? r.text() : Promise.reject(new Error(r.status))))
+  .then(list => { loadSimpleWords(list); refresh(); })
   .catch(() => {});
 
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
