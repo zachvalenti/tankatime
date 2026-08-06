@@ -41,7 +41,7 @@
   <div class="tools">
     <button id="clear" class="tool clear" title="Hold 3 seconds to clear"
             aria-label="Clear everything — hold for three seconds">clear</button>
-    <button id="export" class="tool" title="Export as .txt" aria-label="Export as plain text">txt</button>
+    <button id="export" class="tool" title="Export as .md" aria-label="Export as Markdown">md</button>
     <button id="theme" class="tool" title="Switch theme" aria-label="Switch theme">◐</button>
     <button id="fs" class="tool fs" title="Fullscreen" aria-label="Toggle fullscreen">⛶</button>
   </div>
@@ -74,6 +74,22 @@
   <p>No counter — human or machine — can settle those for you. So treat
   the number in the margin as an <em>estimate</em> and check your math.
   Your voice is the final authority — for poets, it always has been.</p>
+  <!-- the shortcuts are invisible otherwise; this card is the only
+       documentation the app has -->
+  <p class="section"><strong>Writing in Markdown:</strong></p>
+  <p>Start a line with <code># </code> — hash, then a space — to make it a
+  title. Titles sit outside the form: no count in the margin, and the
+  tanka beneath one starts counting again at five. The space matters, so
+  a <code>#hashtag</code> stays an ordinary word.</p>
+  <p>Wrap words in <code>**two asterisks**</code> for bold,
+  <code>*one*</code> for italic, <code>__two underscores__</code> for
+  underline — or press <em>⌘B</em>, <em>⌘I</em>, <em>⌘U</em> (Ctrl on
+  Windows and Linux) with a word selected, or just the cursor resting in
+  one. <code>&gt; </code> quotes a line and <code>- </code> starts a list.</p>
+  <p>The marks show on the line you’re writing and step out of the way on
+  every other one, so a page you aren’t touching reads as the poem rather
+  than as its notation. They are only hidden, never removed: what you save
+  is exactly what you wrote, a plain text file any other app can open.</p>
   <!-- the manifest + sw.js already make this installable; this section is
        the only place the app says so -->
   <p class="section"><strong>Using Tanka Time offline:</strong></p>
@@ -87,9 +103,10 @@
   here</a>.</p>
   <button id="aboutGo" class="go">✍️</button>
 </dialog>
-<!-- classic scripts run in order: count.js first, so its counting
-     functions exist by the time app.js calls them -->
+<!-- classic scripts run in order: count.js and md.js first, so their
+     counting and grammar functions exist by the time app.js calls them -->
 <script src="count.js"></script>
+<script src="md.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

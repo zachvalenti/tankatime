@@ -118,6 +118,46 @@ body {
 .gutter span[data-state="hit"]  { color: var(--hit); }
 .gutter span[data-state="over"] { color: var(--over); }
 
+/* Markdown.
+ *
+ * Both habits at once: Ulysses on the line you're writing — the marks
+ * there, dimmed to the same quiet as the chrome, so nothing shifts under
+ * the caret — and Obsidian everywhere else, where they step out of the
+ * way and the page reads as the poem rather than as its notation.
+ *
+ * The marks that go are the ones that decorate words, plus the hashes of
+ * a heading, which its size announces well enough on its own. The ones
+ * that stay are a line's own shape: a list stripped of its bullet reads
+ * as broken, not tidy. Either way the characters are only hidden, never
+ * removed — they are still in the file and still in anything you copy. */
+.md-mark, .md-hash, .md-prefix { color: var(--dim); }
+.md-strong { font-weight: 700; }
+.md-em     { font-style: italic; }
+.md-u      { text-decoration: underline; text-underline-offset: .2em; }
+
+.editor > :not(.open) .md-mark,
+.editor > :not(.open) .md-hash { display: none; }
+
+/* Headings scale up but have to land back on the same 2em line grid the
+   gutter numbers are pinned to. A line-height in em would resolve
+   against the heading's own larger font, so these are unitless ratios of
+   base ÷ heading size — 2 / 1.4, 2 / 1.2, 2 / 1.08. h4–h6 keep the body
+   size and separate themselves by weight alone. */
+.editor > .md-h1 { font-size: 1.4em;  line-height: 1.43; font-weight: 700; }
+.editor > .md-h2 { font-size: 1.2em;  line-height: 1.67; font-weight: 700; }
+.editor > .md-h3 { font-size: 1.08em; line-height: 1.85; font-weight: 700; }
+.editor > .md-h4,
+.editor > .md-h5,
+.editor > .md-h6 { font-weight: 700; }
+
+/* quoted lines step back in color rather than growing a left border —
+   a border would shift the text column and knock the poem out of line
+   with itself */
+.editor > .md-quote {
+  color: var(--ink); /* fallback where color-mix is unsupported */
+  color: color-mix(in srgb, var(--ink) 72%, var(--dim));
+}
+
 /* the 5·7·5·7·7 hint, shown only while the page is empty */
 .doc.empty::after {
   content: "5 · 7 · 5 · 7 · 7";
@@ -239,6 +279,10 @@ body {
 
 /* a full blank line before each section header */
 .about .section { margin-top: 2em; }
+
+/* the card is already monospace; the marks it quotes just need to sit
+   apart from the prose around them */
+.about code { color: var(--hit); }
 
 .about .form {
   color: var(--hit);

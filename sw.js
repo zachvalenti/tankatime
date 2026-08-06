@@ -11,13 +11,14 @@
  * the new name and deletes the old cache on activate.
  */
 
-const CACHE = 'tanka-time-v26';
+const CACHE = 'tanka-time-v29';
 const ASSETS = [
   './',
   'index.html',
   'style.css',
   'app.js',
   'count.js',
+  'md.js',
   'syllables.json',
   'manifest.webmanifest',
   'icon.svg',
@@ -29,10 +30,17 @@ const ASSETS = [
 // install: fetch and cache every asset, atomically — if one download
 // fails, the whole install fails and the old worker stays in charge.
 // skipWaiting lets the new worker take over without a tab close.
+//
+// cache: 'reload' on every request is what makes a release land whole.
+// A plain fetch may be answered from the browser's own HTTP cache, so a
+// new worker can fill its fresh cache with stale files — and a half-new
+// set is worse than an old one: last release's index.html doesn't load
+// md.js, and this release's app.js reaches for it on the first line.
+// Going past the HTTP cache means the new name always holds new bytes.
 self.addEventListener('install', e => {
   e.waitUntil(
     caches.open(CACHE)
-      .then(c => c.addAll(ASSETS))
+      .then(c => c.addAll(ASSETS.map(url => new Request(url, { cache: 'reload' }))))
       .then(() => self.skipWaiting())
   );
 });
