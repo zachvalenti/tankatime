@@ -11,15 +11,18 @@
  * the new name and deletes the old cache on activate.
  */
 
-const CACHE = 'tanka-time-v31';
+const CACHE = 'tanka-time-v32';
 const ASSETS = [
   './',
   'index.html',
   'style.css',
   'app.js',
   'count.js',
-  'md.js',
+  'simple.js',
+  'modes.js',
+  'markdown.js',
   'fountain.js',
+  'marks.js',
   'syllables.json',
   'tenhundred.txt',
   'manifest.webmanifest',
@@ -37,7 +40,7 @@ const ASSETS = [
 // A plain fetch may be answered from the browser's own HTTP cache, so a
 // new worker can fill its fresh cache with stale files — and a half-new
 // set is worse than an old one: last release's index.html doesn't load
-// md.js, and this release's app.js reaches for it on the first line.
+// markdown.js, and this release's app.js reaches for it on line one.
 // Going past the HTTP cache means the new name always holds new bytes.
 self.addEventListener('install', e => {
   e.waitUntil(

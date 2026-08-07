@@ -1,12 +1,19 @@
 'use strict';
 
-/* Tanka Time — the whole app in one file, no framework, no build step.
+/* Tanka Time — the editor. No framework, no build step.
  *
- * index.html loads count.js (syllable counting) and then this file,
- * which wires up everything else: the editor, the numbers in the
- * margin, autosave, themes, export, the clear-hold flood, and offline
- * support. Top to bottom it follows the page's life — grab elements,
- * define behavior, attach listeners, restore saved state.
+ * index.html loads six small files before this one, and every one of
+ * them is pure strings: give it text, get text back. count.js counts
+ * syllables and words, simple.js holds the thousand plain words,
+ * modes.js reads what the first line of the page asked for, markdown.js
+ * and fountain.js are the two grammars, and marks.js is what the
+ * keyboard shortcuts do to a line. None of them knows a page exists.
+ *
+ * This file is where a page appears, and it does everything that needs
+ * one: the editor, the numbers in the margin, undo, autosave, themes,
+ * export, the clear-hold flood, offline support. Top to bottom it
+ * follows the page's life — grab elements, define behavior, attach
+ * listeners, restore saved state.
  */
 
 // every element the script touches, grabbed once by id
@@ -295,7 +302,7 @@ function decorate(line, isMode, simple, kind) {
 function readDoc() {
   const rows = [...editor.children];
   const src = rows.map(d => plain(d.textContent));
-  const modes = mdModes(src);
+  const modes = readModes(src);
   // Fountain is the one grammar here that can't be read a line at a
   // time — a shout is a character cue or a line of action depending
   // entirely on what sits above and below it. So the shapes are worked
@@ -500,8 +507,10 @@ function setTotalMode(mode) {
 function setFountain(on) {
   if (on === fountain) return;
   fountain = on;
-  // the file the export writes is a different file now
-  exportBtn.title = on ? 'Export as .fountain' : 'Export as .md';
+  // the file the export writes is a different file now. Outside a
+  // script it depends on whether any marks were used, which changes as
+  // you type — so the title names both rather than chase it.
+  exportBtn.title = on ? 'Export as .fountain' : 'Export as .md or .txt';
   applyTotal();
 }
 
@@ -716,13 +725,19 @@ editor.addEventListener('compositionend', () => { composing = false; refresh(); 
 // flattens it away on the next save. Here they write Markdown instead.
 // (⌘U is the one that differs: Markdown underlines with two
 // underscores here and Fountain with one, so the table is chosen by
-// mode. mdToggle() does the string arithmetic for both unchanged.)
+// mode. markToggle() does the string arithmetic for both unchanged.)
+//
+// ⌘K shouts a word and ⌘\ centers a line. Both are here for the script
+// — a screenplay is written in capitals more than anything else is —
+// but only the centering is Fountain's own notation, so ⌘K is left
+// available to a poem and ⌘\ isn't.
 editor.addEventListener('keydown', e => {
   if (!(e.metaKey || e.ctrlKey) || e.altKey) return;
-  const mark = (fountain ? FTN_MARKS : MD_MARKS)[e.key.toLowerCase()];
-  if (!mark) return;
-  e.preventDefault();
-  toggleMark(mark);
+  const key = e.key.toLowerCase();
+  const mark = (fountain ? FTN_MARKS : MD_MARKS)[key];
+  if (mark) { e.preventDefault(); editLines((t, s, x) => markToggle(t, s, x, mark)); return; }
+  if (key === 'k') { e.preventDefault(); editLines(upperToggle); return; }
+  if (key === '\\' && fountain) { e.preventDefault(); editLines((t, s) => centerToggle(t, s)); }
 });
 
 // the line div a node sits in, or null for anything outside the editor
@@ -747,10 +762,19 @@ function pointAt(container, offset, atEnd) {
   return row ? [row, offsetIn(row, container, offset)] : null;
 }
 
-// Marks apply a line at a time. That isn't only the simpler path —
-// Markdown emphasis can't cross a line break, so a mark per line is
-// what any later reader of the source would need anyway.
-function toggleMark(mark) {
+/* Every shortcut works a line at a time. That isn't only the simpler
+ * path — emphasis can't cross a line break in either notation, so a
+ * mark per line is what any later reader of the source would need
+ * anyway.
+ *
+ * `fn` is the whole difference between one shortcut and the next: it
+ * takes a line and a range and answers with the new line and where the
+ * selection lands, and every one of them lives in marks.js knowing
+ * nothing about the DOM. This function does the rest — reading the
+ * selection, closing off the undo step, writing the lines back to
+ * front, and putting the caret where fn asked for it.
+ */
+function editLines(fn) {
   const sel = document.getSelection();
   if (!sel || !sel.rangeCount) return;
   const r = sel.getRangeAt(0);
@@ -774,7 +798,7 @@ function toggleMark(mark) {
     if (a !== b && !src.trim()) { jobs.push({ row: rows[i], src, text: src, s: 0, e: 0 }); continue; }
     const s = i === a ? start[1] : 0;
     const e = i === b ? end[1] : src.length;
-    jobs.push({ row: rows[i], src, ...mdToggle(src, s, e, mark) });
+    jobs.push({ row: rows[i], src, ...fn(src, s, e) });
   }
 
   // back to front, so the offsets measured above stay true. Writing the
@@ -833,15 +857,27 @@ fsBtn.addEventListener('click', () => {
 // point a throwaway <a> at it, and click the link on the user's behalf
 exportBtn.addEventListener('click', () => {
   // whatever the first line asked for was for the room, not the file
-  const src = getText().split('\n');
-  const text = src.slice(mdModes(src).lines).join('\n').replace(/^\n+/, '');
+  const all = getText().split('\n');
+  const modes = readModes(all);
+  // the capitals a script wears on the page go into the file too — see
+  // ftnText(), and the note there about what a lowercase slugline costs
+  const lines = (modes.fountain ? ftnText(all, modes.lines) : all).slice(modes.lines);
+  const text = lines.join('\n').replace(/^\n+/, '');
   if (!text.trim()) return;
-  // a poem leaves as Markdown and a script as Fountain — same plain
-  // text either way, but the extension is what tells the next app which
-  // of the two it is holding
-  const type = fountain ? 'text/plain' : 'text/markdown';
-  const name = fountain ? 'script' : 'tanka';
-  const ext = fountain ? 'fountain' : 'md';
+
+  /* Three files, and the page decides which by what's actually on it.
+   *
+   * A script is Fountain. A page that reached for a mark is Markdown.
+   * A page that never did is neither: a tanka with no notation in it is
+   * a poem, and handing it over as .md tells the next program to go
+   * looking for a grammar that was never used. So it leaves as .txt,
+   * which is the truth about it.
+   */
+  const script = modes.fountain;
+  const marked = !script && mdUsed(lines);
+  const name = script ? 'script' : 'tanka';
+  const ext = script ? 'fountain' : marked ? 'md' : 'txt';
+  const type = marked ? 'text/markdown' : 'text/plain';
   const blob = new Blob([text + '\n'], { type: type + ';charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');

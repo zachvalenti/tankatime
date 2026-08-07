@@ -55,9 +55,13 @@ const FTN_CENTERED = /^>.*<[ \t]*$/;// > THE END <
 // words, not sluglines.
 const FTN_SCENE = /^(?:int|ext|est|int\.?\/ext|i\/e)[.\s]/i;
 
-// A transition is an all-caps line that lands on "TO:" — CUT TO:,
-// DISSOLVE TO:, MATCH CUT TO:. The caps test is done by the caller.
-const FTN_TRANS = /\bTO:$/;
+// A transition is a line that lands on "TO:" — CUT TO:, DISSOLVE TO:,
+// MATCH CUT TO:. Read without regard to case, because the caps are put
+// on for you (see FTN_CAPS below) and a writer shouldn't have to shout
+// before the app will listen. What keeps a line of dialogue ending
+// "...give it to:" out of this is the caller, which asks the question
+// only when the line isn't already inside somebody's speech.
+const FTN_TRANS = /\bto:[ \t]*$/i;
 
 // a parenthetical is a line that is nothing but a parenthesis pair
 const FTN_PAREN = /^\(.*\)[ \t]*$/;
@@ -84,10 +88,38 @@ function isShout(text) {
   return /[A-Za-z]/.test(text) && text === text.toUpperCase();
 }
 
+// a name shouted on its own line — the shape a character cue takes, and
+// the one case where the app will take a cue without a gap above it
+function isOneWord(text) {
+  return !/\s/.test(text);
+}
+
 /* The kinds a line can be. Held here rather than spelled out at each
  * call so the class names and the prefix widths stay in one place.
  */
 function kind(cls, prefix) { return { cls, prefix: prefix || 0 }; }
+
+/* Sluglines and transitions are written in capitals — that is simply
+ * what a screenplay looks like, and more than a convention: a Fountain
+ * reader that meets "cut to:" in lower case will not know it is a
+ * transition at all. So the app puts the capitals on, in the margin and
+ * again on the way out to a file, and the writer types whichever case
+ * is nearest to hand.
+ *
+ * It rides along as a second class on the line, so style.css can
+ * uppercase the display and the export can ask the same question of the
+ * same function. Only lines the app worked out for itself get it: a
+ * forced heading or transition is a writer overruling the app, and
+ * overruling it only to be overruled back would be a poor trade.
+ */
+const FTN_CAPS = 'ftn-caps';
+function shouted(cls) { return cls + ' ' + FTN_CAPS; }
+
+// a line can wear two names now, so asking what it is means asking the
+// list rather than the string
+function isKind(kind, name) {
+  return !!kind && kind.cls.split(' ').includes(name);
+}
 
 /* ---------- the document pass ---------- */
 
@@ -150,28 +182,42 @@ function ftnKinds(src, start) {
     if (FTN_CENTERED.test(text)) { out.push(kind('ftn-centered', 1)); continue; }
     if (FTN_TRANS_F.test(text))  { out.push(kind('ftn-transition', 1)); continue; }
 
+    // is this line already inside somebody's speech? Asked twice below,
+    // and the answer is what keeps a shouted line of dialogue from
+    // being mistaken for the scenery around it
+    const speaking = after('ftn-character') || after('ftn-paren') || after('ftn-dialogue');
+
     // 5. a slugline. Written where a scene starts, so it wants air
     //    above it — but a writer mid-draft often hasn't left any, and
     //    refusing the line then would be pedantry.
-    if (FTN_SCENE.test(t)) { out.push(kind('ftn-scene')); continue; }
+    if (FTN_SCENE.test(t)) { out.push(kind(shouted('ftn-scene'))); continue; }
 
-    // 6. CUT TO: — shouted, and standing on its own
-    if (isShout(t) && FTN_TRANS.test(t) && prevBlank) {
-      out.push(kind('ftn-transition'));
+    // 6. CUT TO: — anywhere a character isn't already talking
+    if (FTN_TRANS.test(t) && !speaking) {
+      out.push(kind(shouted('ftn-transition')));
       continue;
     }
 
-    // 7. the cue, and the reason this whole pass exists: a shout with a
-    //    gap above it and a voice below. Take either away and the same
-    //    characters are a line of action.
-    if (isShout(t) && prevBlank && !nextBlank) {
+    // 7. the cue, and the reason this whole pass exists.
+    //
+    //    The strict reading is a shout with a gap above it and a voice
+    //    below: take either away and the same characters are a line of
+    //    action. That is Fountain's own rule, and it is what lets
+    //    "MAYA (V.O.)" and "THE TWO BROTHERS" be names at all.
+    //
+    //    A single shouted word is let through without the gap, because
+    //    a name on its own line is unmistakable and a draft in progress
+    //    rarely has its blank lines in place yet. Two words still need
+    //    the gap — otherwise the sign reading NO ENTRY in the middle of
+    //    a paragraph of action would start speaking.
+    if (isShout(t) && !nextBlank && (prevBlank || isOneWord(t))) {
       out.push(kind('ftn-character'));
       continue;
     }
 
     // 8. what follows a cue. A parenthetical can sit between the cue and
     //    the words, or between one breath and the next.
-    if (after('ftn-character') || after('ftn-paren') || after('ftn-dialogue')) {
+    if (speaking) {
       out.push(kind(FTN_PAREN.test(t) ? 'ftn-paren' : 'ftn-dialogue'));
       continue;
     }
@@ -232,7 +278,7 @@ function ftnRuns(text, kind) {
   // the line's own class in style.css — deliberately *not* md-mark,
   // which would hide the line outright on every line but the one you're
   // writing, and cut text should be visibly cut, not gone.
-  if (kind && kind.cls === 'ftn-bone') {
+  if (isKind(kind, 'ftn-bone')) {
     push(text, '');
     return runs;
   }
@@ -251,7 +297,7 @@ function ftnRuns(text, kind) {
   // Centered text is the one mark with two ends. Its '<' has to go the
   // same way its '>' goes, or a finished page reads "THE END <".
   let suffix = 0;
-  if (kind && kind.cls === 'ftn-centered') {
+  if (isKind(kind, 'ftn-centered')) {
     const m = /<[ \t]*$/.exec(text);
     if (m && m.index >= prefix) suffix = text.length - m.index;
   }
@@ -282,17 +328,23 @@ function ftnRuns(text, kind) {
   return runs;
 }
 
-/* ---------- ⌘B / ⌘I / ⌘U ---------- */
+/* ---------- on the way out to a file ---------- */
 
-// The same three shortcuts, one character different — and that one
-// character is the whole reason this table exists. mdToggle() does the
-// string arithmetic for both grammars unchanged: '_' behaves exactly as
-// '*' does, minus the doubled-mark ambiguity, because Fountain has no
-// '__' for it to be mistaken for.
-const FTN_MARKS = { b: '**', i: '*', u: '_' };
+/* The capitals the app puts on are on the page and in the file both,
+ * and this is the half that makes the file. It matters more than it
+ * looks: an unforced transition or slugline in lower case is not a
+ * transition or a slugline to any other Fountain program, so a script
+ * exported as typed could open somewhere else with its scenes turned
+ * into ordinary paragraphs. The one place the original casing survives
+ * is the draft in the browser, which nothing ever reads back to you.
+ */
+function ftnText(src, start) {
+  const kinds = ftnKinds(src, start);
+  return src.map((line, i) => isKind(kinds[i], FTN_CAPS) ? line.toUpperCase() : line);
+}
 
 // Node (a test run, or a future build tool) sees module; the browser
 // doesn't and skips this
 if (typeof module !== 'undefined') {
-  module.exports = { ftnKinds, ftnRuns, FTN_MARKS, FTN_CLASSES, isShout };
+  module.exports = { ftnKinds, ftnRuns, ftnText, isKind, FTN_CLASSES, FTN_CAPS, isShout };
 }

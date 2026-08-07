@@ -51,14 +51,27 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
 - Fountain (`/fountain` on the first line, `fountain.js`): line classes are
   `ftn-scene`, `ftn-character`, `ftn-paren`, `ftn-dialogue`, `ftn-action`,
   `ftn-transition`, `ftn-centered`, `ftn-section`, `ftn-synopsis`,
-  `ftn-lyric`, `ftn-bone`. Assert `#gutter` is `hidden` with no spans, and
-  that the total never reaches the syllable face. The one flow worth
-  driving carefully is **context**: a cue is only a cue with a blank line
-  above it and a written line below, so delete either and `MAYA` must fall
-  back to `ftn-action`. That's the whole reason `ftnKinds()` reads the
-  document instead of the line. Also check ⌘U writes `_x_` here and
-  `__x__` in poem mode, and that `localStorage['tanka-time-total']` is
-  *unchanged* by the mode — the face is borrowed, not overwritten.
+  `ftn-lyric`, `ftn-bone`, plus `ftn-caps` riding along on the two the app
+  shouts for you. Assert `#gutter` is `hidden` with no spans, and that the
+  total never reaches the syllable face. Things worth driving:
+  - **Context**, the reason `ftnKinds()` reads the document instead of the
+    line. Two shouted words need a blank line above to be a cue, so
+    `NO ENTRY` mid-paragraph stays `ftn-action`; one shouted word doesn't,
+    so `MAYA` under `He turns.` is a cue. A cue with nothing under it is
+    action either way.
+  - **Caps**: type `int. kitchen - night` and `cut to:` in lower case. Both
+    must be recognised, both must compute to `text-transform: uppercase`,
+    the *draft* must keep your casing, and the exported file must not —
+    check the download body, not just the filename. Forced (`.`/`>`/`@`)
+    lines keep whatever case you gave them.
+  - ⌘U writes `_x_` here and `__x__` in poem mode; ⌘K shouts the word under
+    the caret and toggles back; ⌘\ wraps a line in `> <` and is inert
+    outside a script.
+  - `localStorage['tanka-time-total']` is *unchanged* by the mode — the
+    face is borrowed, not overwritten.
+- Export picks its extension from the page: `.fountain` for a script,
+  `.md` for a page that used a mark, `.txt` for one that didn't
+  (`mdUsed()` in `markdown.js`). Worth asserting all three.
 - Undo is the app's own (`app.js`), not the browser's — decoration rewrites
   the nodes a native undo would need. A step ends when the edit kind changes
   (typing → deleting), when the caret moved between edits, on a word
