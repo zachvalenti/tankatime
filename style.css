@@ -167,6 +167,47 @@ body {
   color: color-mix(in srgb, var(--ink) 72%, var(--dim));
 }
 
+/* Fountain — /fountain on the first line, and the room is a screenplay.
+ *
+ * Every rule here keeps the base font size on purpose. The gutter is
+ * hidden in this mode, so the 2em line grid the headings above go to
+ * such trouble to land back on doesn't strictly matter — but a script
+ * is read as a column of even lines, and growing the sluglines would
+ * cost more than it bought. Shape comes from weight, indent and
+ * alignment instead.
+ *
+ * Nothing here uses text-transform. A cue is shouted because the writer
+ * shouted it, and the app's standing promise is that the file holds
+ * exactly what the page shows. */
+.editor > .ftn-scene   { font-weight: 700; }
+.editor > .ftn-section { font-weight: 700; }
+
+/* dialogue steps in from the margin the way it does on the page, and
+   the cue steps in further. padding rather than margin, so the line
+   keeps its full width for the caret to sit in */
+.editor > .ftn-character { padding-left: 8em; }
+.editor > .ftn-paren     { padding-left: 6em; }
+.editor > .ftn-dialogue  { padding-left: 4em; padding-right: 4em; }
+
+.editor > .ftn-transition { text-align: right; }
+.editor > .ftn-centered   { text-align: center; }
+
+/* an aside is quieter than the script; a parenthetical is an aside the
+   actor still reads, so it stops short of the boneyard's dimness */
+.editor > .ftn-paren {
+  color: var(--ink); /* fallback where color-mix is unsupported */
+  color: color-mix(in srgb, var(--ink) 72%, var(--dim));
+}
+
+.editor > .ftn-lyric    { font-style: italic; }
+.editor > .ftn-synopsis { color: var(--dim); font-style: italic; }
+
+/* the boneyard: kept in the file, struck from the script */
+.editor > .ftn-bone { color: var(--dim); text-decoration: line-through; }
+
+/* a note to yourself, dim from bracket to bracket */
+.md-note { color: var(--dim); }
+
 /* the 5·7·5·7·7 hint, shown only while the page is empty */
 .doc.empty::after {
   content: "5 · 7 · 5 · 7 · 7";

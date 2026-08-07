@@ -23,7 +23,7 @@ A quiet room for tanka. WriteRoom inspired full-screen writing with a syllable c
   the typing becomes deleting, when the caret moves elsewhere, when a word
   is finished, or when the typing stops.
 - Everything autosaves to the browser (localStorage). No accounts, no cloud.
-- `md` exports the page as a Markdown file; `◐` cycles themes
+- `export` saves the page as a Markdown file; `◐` cycles themes
   (green room → creme paper → dusk).
 - `?` (bottom left) opens a short note on the tanka form and why the
   app exists.
@@ -55,6 +55,8 @@ works as a plain page.)
 - `count.js` — syllable counting: hand overrides → dictionary → heuristic
 - `md.js` — the Markdown grammar: what a line is, where the marks fall,
   and what ⌘B/I/U do to a line of text. Pure strings, no DOM
+- `fountain.js` — the same job for Fountain, the screenplay notation.
+  Pure strings, no DOM
 - `syllables.json` — generated word list: the CMU dictionary words the
   heuristic would get wrong (don't edit by hand)
 - `tools/build-syllables.mjs` — regenerates `syllables.json`; see its

@@ -133,15 +133,19 @@ function mdRuns(text) {
  * long as each holds only mode words, so they may share one line or take
  * one apiece, in whatever order.
  *
- *   /free    the counts stop judging. No target, no green, no amber —
- *            just the number, for a syllabic ear working outside 31.
- *   /simple  every word is held against a thousand-word list, and the
- *            ones that aren't on it are marked.
+ *   /free     the counts stop judging. No target, no green, no amber —
+ *             just the number, for a syllabic ear working outside 31.
+ *   /simple   every word is held against a thousand-word list, and the
+ *             ones that aren't on it are marked.
+ *   /fountain the room becomes a screenplay: Fountain notation instead
+ *             of Markdown (fountain.js), and no syllables at all — a
+ *             count of beats in a line of dialogue would be a number
+ *             about nothing. The total falls to words, or the clock.
  *
  * They are scaffolding rather than poem: no count in the margin, nothing
  * in the total, and the export leaves them behind.
  */
-const MD_MODES = ['free', 'simple'];
+const MD_MODES = ['free', 'simple', 'fountain'];
 const MD_MODE_WORD = new RegExp('^/(' + MD_MODES.join('|') + ')$');
 
 // the mode words on a line, or null if the line is a line of poem —
@@ -158,8 +162,8 @@ function modeWords(text) {
   return out;
 }
 
-// → { free, simple, lines }, lines being how many the modes occupy at
-// the top, which is also how many the export drops
+// → { free, simple, fountain, lines }, lines being how many the modes
+// occupy at the top, which is also how many the export drops
 function mdModes(src) {
   const on = new Set();
   let n = 0;
@@ -169,7 +173,8 @@ function mdModes(src) {
     for (const w of words) on.add(w);
     n++;
   }
-  return { free: on.has('free'), simple: on.has('simple'), lines: n };
+  return { free: on.has('free'), simple: on.has('simple'),
+           fountain: on.has('fountain'), lines: n };
 }
 
 /* ---------- the thousand words ---------- */

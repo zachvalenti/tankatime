@@ -139,8 +139,10 @@ function runNode(run) {
 }
 
 // the classes decorate() writes, and a name no run can ever carry —
-// used below to mark markup this file didn't put there
-const MD_OURS = new Set(MD_CLASSES);
+// used below to mark markup this file didn't put there. Both grammars
+// are listed: a class missing from here is named FOREIGN below, and a
+// line wearing it repaints on every keystroke forever.
+const MD_OURS = new Set([...MD_CLASSES, ...FTN_CLASSES]);
 const FOREIGN = '/not ours';
 
 // what a line shows now, in the shape mdRuns() describes it: adjacent
@@ -256,18 +258,24 @@ function flagWords(runs) {
 }
 
 // one line: name its shape for style.css, then repaint it if — and only
-// if — the runs have moved
-function decorate(line, isMode, simple) {
+// if — the runs have moved.
+//
+// `kind` is the line's answer from ftnKinds(), or null in poem mode —
+// Fountain can't read a line without its neighbours, so the shape is
+// worked out for the whole document up in readDoc() and handed down
+// here rather than asked for a line at a time.
+function decorate(line, isMode, simple, kind) {
   if (composing) return;
   const text = plain(line.textContent);
   // the block class names the line's shape; 'open' rides along with it,
   // because writing className outright would otherwise wipe it
-  const cls = [isMode ? 'md-mode' : mdBlock(text).cls, line === openLine ? 'open' : '']
-    .filter(Boolean).join(' ');
+  const shape = isMode ? 'md-mode' : kind ? kind.cls : mdBlock(text).cls;
+  const cls = [shape, line === openLine ? 'open' : ''].filter(Boolean).join(' ');
   if (line.className !== cls) line.className = cls;
 
   // a mode line is not poem, so its words are nobody's business
-  const want = simple && !isMode ? flagWords(mdRuns(text)) : mdRuns(text);
+  const runs = kind && !isMode ? ftnRuns(text, kind) : mdRuns(text);
+  const want = simple && !isMode ? flagWords(runs) : runs;
   if (want.length ? sameRuns(want, currentRuns(line)) : isBare(line)) return;
 
   const off = caretOffset(line);
@@ -287,7 +295,15 @@ function decorate(line, isMode, simple) {
 function readDoc() {
   const rows = [...editor.children];
   const src = rows.map(d => plain(d.textContent));
-  return { rows, src, modes: mdModes(src) };
+  const modes = mdModes(src);
+  // Fountain is the one grammar here that can't be read a line at a
+  // time — a shout is a character cue or a line of action depending
+  // entirely on what sits above and below it. So the shapes are worked
+  // out for the whole document in one pass, once, and decorate() is
+  // handed each line's answer. In poem mode there is nothing to work
+  // out ahead: mdBlock() reads a line on its own.
+  const kinds = modes.fountain ? ftnKinds(src, modes.lines) : null;
+  return { rows, src, modes, kinds };
 }
 
 function refresh() {
@@ -295,11 +311,12 @@ function refresh() {
   // ask where the caret is now rather than trusting the last event to
   // have told us — see the note on openLine
   openLine = caretLine();
-  const { rows, src, modes } = readDoc();
+  const { rows, src, modes, kinds } = readDoc();
+  setFountain(modes.fountain);
   // decorate before measuring: a heading stands taller than a line of
   // poem, so every offsetTop read below has to be the settled one
   for (let i = 0; i < rows.length; i++)
-    decorate(rows[i], i < modes.lines, modes.simple);
+    decorate(rows[i], i < modes.lines, modes.simple, kinds && kinds[i]);
   measure(rows, src, modes);
 }
 
@@ -332,6 +349,14 @@ function measure(rows, src, modes) {
     // number beside it and nothing of it in either total. 'any' still
     // turns true so the 5·7·5·7·7 hint doesn't sit on top of it.
     if (i < modes.lines) { any = true; continue; }
+    // a script has no form to hold it to. Counting the syllables in a
+    // line of dialogue would produce a number about nothing, so it
+    // isn't counted at all — no margin, no target, no total. Words
+    // still add up, because that face of the total is the one left.
+    if (modes.fountain) {
+      if (src[i].trim()) { any = true; words += countWords(src[i]); }
+      continue;
+    }
     // a title stands outside the form: nothing in the margin, no
     // syllables in the total, and a fresh tanka opens beneath it
     if (head[i]) {
@@ -397,6 +422,28 @@ let totalMode = MODES.includes(localStorage.getItem(TOTAL_KEY))
   ? localStorage.getItem(TOTAL_KEY) : 'syllables';
 let totals = { syllables: 0, words: 0 };
 
+/* /fountain removes one of the three faces, and the removal has to be
+ * temporary in a way the stored setting is not.
+ *
+ * The face is a setting: global, remembered, chosen once and kept. The
+ * mode is a property of the document: it lives in the first line, and
+ * deleting that line has to give everything back. So writing 'words'
+ * into storage the moment a script starts would be the wrong kind of
+ * permanent — a poem opened afterwards would have lost its syllables,
+ * with nothing on the page to explain why.
+ *
+ * Instead the stored face is left exactly as it was and read through
+ * here. Syllables become words while a script is open, and the poem's
+ * own setting is still underneath when the script closes.
+ */
+let fountain = false;
+
+function faces() { return fountain ? ['words', 'timer'] : MODES; }
+
+function shownMode() {
+  return fountain && totalMode === 'syllables' ? 'words' : totalMode;
+}
+
 // the timer counts this sitting only: it starts when the page loads,
 // so a refresh or a fresh launch starts it over. No clock state is
 // saved anywhere — that keeps it honest and the display small.
@@ -413,30 +460,57 @@ function fmtClock(ms) {
 }
 
 function renderTotal() {
-  if (totalMode === 'timer') {
+  const mode = shownMode();
+  if (mode === 'timer') {
     totalEl.textContent = fmtClock(Date.now() - SESSION_T0);
     return;
   }
-  const n = totals[totalMode];
-  const noun = totalMode === 'words' ? 'word' : 'syllable';
+  const n = totals[mode];
+  const noun = mode === 'words' ? 'word' : 'syllable';
   totalEl.textContent = n ? `${n} ${noun}${n === 1 ? '' : 's'}` : '';
+}
+
+// everything the chosen face changes on the page. Kept apart from the
+// remembering below because the mode can take the choice away without
+// the writer having chosen anything.
+function applyTotal() {
+  const mode = shownMode();
+  // the margin numbers are syllable counts; on the other faces they'd
+  // contradict the total, so the gutter rests until syllables return.
+  // (the native hidden attribute is display:none without any CSS)
+  gutter.hidden = mode !== 'syllables';
+  // the once-a-second tick exists only while the timer face is up
+  clearInterval(clockTimer);
+  clockTimer = mode === 'timer' ? setInterval(renderTotal, 1000) : 0;
+  renderTotal();
 }
 
 function setTotalMode(mode) {
   totalMode = mode;
   try { localStorage.setItem(TOTAL_KEY, mode); } catch (_) {}
-  // the margin numbers are syllable counts; on the other faces they'd
-  // contradict the total, so the gutter rests until syllables return.
-  // (the native hidden attribute is display:none without any CSS)
-  gutter.hidden = totalMode !== 'syllables';
-  // the once-a-second tick exists only while the timer face is up
-  clearInterval(clockTimer);
-  clockTimer = totalMode === 'timer' ? setInterval(renderTotal, 1000) : 0;
-  renderTotal();
+  applyTotal();
+}
+
+/* Called from every refresh, which is why it does nothing at all unless
+ * the answer has changed. applyTotal() restarts the clock's once-a-
+ * second tick, and running it on each keystroke would mean the second
+ * never finishes: a writer typing steadily would watch a timer that
+ * never moved.
+ */
+function setFountain(on) {
+  if (on === fountain) return;
+  fountain = on;
+  // the file the export writes is a different file now
+  exportBtn.title = on ? 'Export as .fountain' : 'Export as .md';
+  applyTotal();
 }
 
 totalEl.addEventListener('click', () => {
-  setTotalMode(MODES[(MODES.indexOf(totalMode) + 1) % MODES.length]);
+  const f = faces();
+  // from a face the mode has taken away, the next click lands on the
+  // first one it left
+  const i = f.indexOf(shownMode());
+  setTotalMode(f[(i + 1) % f.length]);
 });
 
 /* ---------- persistence ---------- */
@@ -640,9 +714,12 @@ editor.addEventListener('compositionend', () => { composing = false; refresh(); 
 // Without this handler the browser answers these itself and injects
 // <b>/<i>/<u> into the line — markup that looks right until getText()
 // flattens it away on the next save. Here they write Markdown instead.
+// (⌘U is the one that differs: Markdown underlines with two
+// underscores here and Fountain with one, so the table is chosen by
+// mode. mdToggle() does the string arithmetic for both unchanged.)
 editor.addEventListener('keydown', e => {
   if (!(e.metaKey || e.ctrlKey) || e.altKey) return;
-  const mark = MD_MARKS[e.key.toLowerCase()];
+  const mark = (fountain ? FTN_MARKS : MD_MARKS)[e.key.toLowerCase()];
   if (!mark) return;
   e.preventDefault();
   toggleMark(mark);
@@ -759,11 +836,17 @@ exportBtn.addEventListener('click', () => {
   const src = getText().split('\n');
   const text = src.slice(mdModes(src).lines).join('\n').replace(/^\n+/, '');
   if (!text.trim()) return;
-  const blob = new Blob([text + '\n'], { type: 'text/markdown;charset=utf-8' });
+  // a poem leaves as Markdown and a script as Fountain — same plain
+  // text either way, but the extension is what tells the next app which
+  // of the two it is holding
+  const type = fountain ? 'text/plain' : 'text/markdown';
+  const name = fountain ? 'script' : 'tanka';
+  const ext = fountain ? 'fountain' : 'md';
+  const blob = new Blob([text + '\n'], { type: type + ';charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `tanka-${new Date().toISOString().slice(0, 10)}.md`;
+  a.download = `${name}-${new Date().toISOString().slice(0, 10)}.${ext}`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 });

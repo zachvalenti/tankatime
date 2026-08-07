@@ -48,6 +48,17 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
   `__underline__`, `> quote`, `- list`. Line classes are on the line divs
   (`md-h1`, `md-quote`, `md-list`), the marks are `.md-mark` spans inside.
   `getText()` must round-trip the source exactly — decoration is only paint.
+- Fountain (`/fountain` on the first line, `fountain.js`): line classes are
+  `ftn-scene`, `ftn-character`, `ftn-paren`, `ftn-dialogue`, `ftn-action`,
+  `ftn-transition`, `ftn-centered`, `ftn-section`, `ftn-synopsis`,
+  `ftn-lyric`, `ftn-bone`. Assert `#gutter` is `hidden` with no spans, and
+  that the total never reaches the syllable face. The one flow worth
+  driving carefully is **context**: a cue is only a cue with a blank line
+  above it and a written line below, so delete either and `MAYA` must fall
+  back to `ftn-action`. That's the whole reason `ftnKinds()` reads the
+  document instead of the line. Also check ⌘U writes `_x_` here and
+  `__x__` in poem mode, and that `localStorage['tanka-time-total']` is
+  *unchanged* by the mode — the face is borrowed, not overwritten.
 - Undo is the app's own (`app.js`), not the browser's — decoration rewrites
   the nodes a native undo would need. A step ends when the edit kind changes
   (typing → deleting), when the caret moved between edits, on a word
