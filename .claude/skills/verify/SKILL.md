@@ -73,9 +73,9 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
     are all `ftn-dialogue`; `(beat)` between them is `ftn-paren`. Only a
     blank line returns you to action.
   - **The cover.** `/fountain` into an empty page seeds Title/Author/Draft
-    date/Contact and `> FADE IN:` as *real text*, in one undo step. Delete
-    it and it must stay deleted; a page with writing in it must never get
-    one.
+    date/Contact as *real text*, in one undo step, ending on the blank line
+    that terminates a Fountain title page. Delete it and it must stay
+    deleted; a page with writing in it must never get one.
   - **`FADE IN:` is marked in the editor, not at export** — `ftnFade()`
     writes the `>` into the line, and never into the line the caret is on.
     Check `getText()`, not just the class.

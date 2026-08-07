@@ -343,7 +343,10 @@ function refresh() {
  * Real text, not a placeholder: it saves, it exports, it deletes, and
  * backspace is the only thing you need to know to be rid of it.
  */
-const COVER = ['Title:', 'Author:', 'Draft date:', 'Contact:', '', '> FADE IN:', ''];
+// The blank after Contact: is the title page's terminator — Fountain
+// reads the cover as running from the top until the first empty line —
+// and the one after that is somewhere to start writing.
+const COVER = ['Title:', 'Author:', 'Draft date:', 'Contact:', '', ''];
 
 /* Seeded on the one keystroke that turns the mode on, and only into a
  * page with nothing under that line. Delete the cover and it stays
