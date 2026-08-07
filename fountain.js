@@ -66,6 +66,23 @@ const FTN_TRANS = /\bto:[ \t]*$/i;
 // a parenthetical is a line that is nothing but a parenthesis pair
 const FTN_PAREN = /^\(.*\)[ \t]*$/;
 
+/* A caret at the end of a cue puts that speech alongside the one before
+ * it rather than under it — two people talking at once. Fountain's own
+ * mark, and the only one that trails instead of leading, which is why it
+ * isn't up with the forced marks above.
+ */
+const FTN_DUAL = /[ \t]*\^[ \t]*$/;
+
+/* The title page: Key: value pairs at the very top of the file, ended by
+ * the first blank line. Other Fountain readers turn them into a cover.
+ *
+ * The keys are listed rather than matched as "any word then a colon",
+ * and that is load-bearing: a script opening on CUT TO: would otherwise
+ * disappear into the title page, since it is a word and a colon at the
+ * top of a document too.
+ */
+const FTN_TITLE = /^(title|credit|authors?|source|draft date|date|contact|copyright|notes?)[ \t]*:/i;
+
 // Sections and synopses — a writer's scaffolding, not the script.
 // `# ` keeps the app's standing rule that a mark is a mark and then a
 // breath (Fountain would allow "#Act One"; one rule across both modes
@@ -88,10 +105,28 @@ function isShout(text) {
   return /[A-Za-z]/.test(text) && text === text.toUpperCase();
 }
 
-// a name shouted on its own line — the shape a character cue takes, and
-// the one case where the app will take a cue without a gap above it
-function isOneWord(text) {
-  return !/\s/.test(text);
+/* FADE IN: and its relatives read as transitions to a screenwriter and
+ * as plain action to Fountain — none of them ends in "TO:", which is the
+ * only shape the format recognises unaided. The fix is the forced mark,
+ * '>', and the app writes it into the line for you.
+ *
+ * Into the *line*, not into the export. This is a plain-text format and
+ * the point of one is that the text is the whole truth: a writer who
+ * learns the mark here can open a script in Notes or a Google Doc and
+ * still write something a renderer will read. Hiding the '>' until
+ * export would teach the opposite lesson, and teach it silently.
+ */
+const FTN_FADE = /^(fade in:|fade out\.|fade to black\.)[ \t]*$/i;
+
+// → the line with its mark, or null if it doesn't need one. Called only
+// for lines the caret has left, so nothing is ever rewritten under a
+// writer mid-word.
+function ftnFade(text) {
+  const t = text.trim();
+  // shouted as well as marked: this is a fixed piece of screenplay
+  // furniture rather than a sentence, and it is written in capitals
+  // everywhere it appears
+  return FTN_FADE.test(t) ? '> ' + t.toUpperCase() : null;
 }
 
 /* The kinds a line can be. Held here rather than spelled out at each
@@ -114,6 +149,10 @@ function kind(cls, prefix) { return { cls, prefix: prefix || 0 }; }
  */
 const FTN_CAPS = 'ftn-caps';
 function shouted(cls) { return cls + ' ' + FTN_CAPS; }
+
+// the other second class: a speech set alongside its neighbour rather
+// than under it, worn by the cue and by everything it says
+const FTN_DUAL_CLS = 'ftn-dual';
 
 // a line can wear two names now, so asking what it is means asking the
 // list rather than the string
@@ -138,6 +177,9 @@ function isKind(kind, name) {
 function ftnKinds(src, start) {
   const out = [];
   let bone = false;
+  // the title page runs from the top to the first blank line, and only
+  // from the top — a Key: value line further down is ordinary writing
+  let title = true;
 
   for (let i = 0; i < src.length; i++) {
     if (i < (start || 0)) { out.push(kind('ftn-action')); continue; }
@@ -146,8 +188,10 @@ function ftnKinds(src, start) {
     const t = text.trim();
     const prevBlank = i === 0 || !src[i - 1].trim();
     const nextBlank = i + 1 >= src.length || !src[i + 1].trim();
-    const prev = out[i - 1] ? out[i - 1].cls : null;
-    const after = c => prev === c;
+    // `after` asks the list rather than the string: a line can wear two
+    // names now (ftn-caps, ftn-dual), and comparing the whole className
+    // would quietly answer no to every one of these
+    const after = c => isKind(out[i - 1], c);
 
     // 1. the boneyard swallows whole lines, so it is asked first and
     //    answered before anything else gets a look
@@ -164,20 +208,36 @@ function ftnKinds(src, start) {
       continue;
     }
 
-    // 2. a blank line is a blank line; it ends whatever came before
-    if (!t) { out.push(kind('')); continue; }
+    // 2. a blank line is a blank line; it ends whatever came before —
+    //    the title page, a speech, and both of them for good
+    if (!t) { title = false; out.push(kind('')); continue; }
 
-    // 3. the writer's scaffolding
+    // 3. the cover. Fountain reads these as the title page only while
+    //    they run unbroken from the very top of the file.
+    if (title) {
+      if (FTN_TITLE.test(t)) { out.push(kind('ftn-title')); continue; }
+      title = false;
+    }
+
+    // 4. the writer's scaffolding
     let m;
     if ((m = FTN_SECTION.exec(text)))  { out.push(kind('ftn-section', m[0].length)); continue; }
     if ((m = FTN_SYNOPSIS.exec(text))) { out.push(kind('ftn-synopsis', m[0].length)); continue; }
     if (FTN_LYRIC.test(text))          { out.push(kind('ftn-lyric', 1)); continue; }
 
-    // 4. the forced marks, which outrank everything they overrule.
+    /* A cue may end in a caret, which sets that whole speech alongside
+     * the one before it. The flag doesn't need carrying by hand: the
+     * previous line's own class already says whether we are in a dual
+     * speech, so it resets itself the moment anything else interrupts.
+     */
+    const cue = () => FTN_DUAL.test(t) ? 'ftn-character ' + FTN_DUAL_CLS : 'ftn-character';
+    const said = c => after(FTN_DUAL_CLS) ? c + ' ' + FTN_DUAL_CLS : c;
+
+    // 5. the forced marks, which outrank everything they overrule.
     //    Centered is asked before transition: both open with '>', and
     //    only the closing '<' tells them apart.
     if (FTN_ACTION_F.test(text)) { out.push(kind('ftn-action', 1)); continue; }
-    if (FTN_CHAR_F.test(text))   { out.push(kind('ftn-character', 1)); continue; }
+    if (FTN_CHAR_F.test(text))   { out.push(kind(cue(), 1)); continue; }
     if (FTN_SCENE_F.test(text))  { out.push(kind('ftn-scene', 1)); continue; }
     if (FTN_CENTERED.test(text)) { out.push(kind('ftn-centered', 1)); continue; }
     if (FTN_TRANS_F.test(text))  { out.push(kind('ftn-transition', 1)); continue; }
@@ -187,38 +247,40 @@ function ftnKinds(src, start) {
     // being mistaken for the scenery around it
     const speaking = after('ftn-character') || after('ftn-paren') || after('ftn-dialogue');
 
-    // 5. a slugline. Written where a scene starts, so it wants air
+    // 6. a slugline. Written where a scene starts, so it wants air
     //    above it — but a writer mid-draft often hasn't left any, and
     //    refusing the line then would be pedantry.
     if (FTN_SCENE.test(t)) { out.push(kind(shouted('ftn-scene'))); continue; }
 
-    // 6. CUT TO: — anywhere a character isn't already talking
+    // 7. CUT TO: — anywhere a character isn't already talking
     if (FTN_TRANS.test(t) && !speaking) {
       out.push(kind(shouted('ftn-transition')));
       continue;
     }
 
-    // 7. the cue, and the reason this whole pass exists.
-    //
-    //    The strict reading is a shout with a gap above it and a voice
-    //    below: take either away and the same characters are a line of
-    //    action. That is Fountain's own rule, and it is what lets
-    //    "MAYA (V.O.)" and "THE TWO BROTHERS" be names at all.
-    //
-    //    A single shouted word is let through without the gap, because
-    //    a name on its own line is unmistakable and a draft in progress
-    //    rarely has its blank lines in place yet. Two words still need
-    //    the gap — otherwise the sign reading NO ENTRY in the middle of
-    //    a paragraph of action would start speaking.
-    if (isShout(t) && !nextBlank && (prevBlank || isOneWord(t))) {
-      out.push(kind('ftn-character'));
+    /* 8. the cue, and the reason this whole pass exists: a shout with a
+     *    gap above it and a voice below. Take either away and the same
+     *    characters are a line of action.
+     *
+     *    The gap is not negotiable, and that is the point. Fountain's own
+     *    rule is exactly this, so a script that reads correctly here reads
+     *    correctly in screenplain or Highland — and a script that doesn't
+     *    is wrong on screen too, where you can see it, rather than wrong
+     *    later in a file you've already sent. An editor may be lenient
+     *    about what it accepts; an editor whose output is the deliverable
+     *    cannot be, because the leniency is invisible until it costs
+     *    something. A cue that needs to break the rule says so with @.
+     */
+    if (isShout(t) && prevBlank && !nextBlank) {
+      out.push(kind(cue()));
       continue;
     }
 
-    // 8. what follows a cue. A parenthetical can sit between the cue and
-    //    the words, or between one breath and the next.
+    // 9. what follows a cue. A parenthetical can sit between the cue and
+    //    the words, or between one breath and the next, and a speech runs
+    //    on until a blank line stops it.
     if (speaking) {
-      out.push(kind(FTN_PAREN.test(t) ? 'ftn-paren' : 'ftn-dialogue'));
+      out.push(kind(said(FTN_PAREN.test(t) ? 'ftn-paren' : 'ftn-dialogue')));
       continue;
     }
 
@@ -294,11 +356,16 @@ function ftnRuns(text, kind) {
   const prefix = kind ? kind.prefix : 0;
   if (prefix) push(text.slice(0, prefix), 'md-mark');
 
-  // Centered text is the one mark with two ends. Its '<' has to go the
-  // same way its '>' goes, or a finished page reads "THE END <".
+  // Two marks trail instead of leading, and both are dimmed the same way
+  // the leading ones are. Centered text is the one mark with two ends —
+  // its '<' has to go the way its '>' goes, or a finished page reads
+  // "THE END <" — and a dual cue's caret is a mark, not part of the name.
   let suffix = 0;
   if (isKind(kind, 'ftn-centered')) {
     const m = /<[ \t]*$/.exec(text);
+    if (m && m.index >= prefix) suffix = text.length - m.index;
+  } else if (isKind(kind, FTN_DUAL_CLS) && isKind(kind, 'ftn-character')) {
+    const m = FTN_DUAL.exec(text);
     if (m && m.index >= prefix) suffix = text.length - m.index;
   }
 
@@ -328,6 +395,86 @@ function ftnRuns(text, kind) {
   return runs;
 }
 
+/* ---------- who is in this script ---------- */
+
+/* The name inside a cue: no forcing '@', no dual caret, and no (V.O.)
+ * or (CONT'D) hanging off the end. Those extensions are real Fountain
+ * and belong in the file, but they aren't the character — MAYA and
+ * MAYA (V.O.) are one person, and offering both as separate names to
+ * complete would be offering a choice that isn't one.
+ */
+function cueName(text) {
+  return text.trim()
+    .replace(/^@/, '')
+    .replace(FTN_DUAL, '')
+    .replace(/\([^)]*\)[ \t]*$/, '')
+    .trim();
+}
+
+/* → every character who speaks in this document, first appearance first.
+ *
+ * Worked out fresh from the page each time rather than remembered, which
+ * is the whole reason a name stops being offered once its last line is
+ * deleted: there is no list to fall out of date, only the script. The
+ * cost is a pass per repaint, and the pass is already being made.
+ */
+function ftnNames(src, start, kinds) {
+  const ks = kinds || ftnKinds(src, start);
+  const seen = new Set();
+  const out = [];
+  for (let i = 0; i < src.length; i++) {
+    if (!isKind(ks[i], 'ftn-character')) continue;
+    const name = cueName(src[i]);
+    const key = name.toUpperCase();
+    if (!name || seen.has(key)) continue;
+    seen.add(key);
+    out.push(name);
+  }
+  return out;
+}
+
+/* ---------- ⌘D: two people at once ---------- */
+
+/* → { line, text } for the one cue whose caret should go on or come off,
+ * or null if the selection has nothing to do with a speech.
+ *
+ * Unlike everything in marks.js this needs the whole document — a cue is
+ * only a cue because of its neighbours, and "the second one" is a
+ * question about the page rather than about a line. That is why it lives
+ * here and not there.
+ *
+ * Three ways to aim it, in the order they're asked:
+ *   two cues in the selection  → the second one, which is the speech
+ *                                being set alongside the first
+ *   one cue in the selection   → that one
+ *   none                       → walk up from the caret to the cue whose
+ *                                speech it is sitting in
+ */
+function ftnDual(src, a, b, start) {
+  const kinds = ftnKinds(src, start);
+  const cues = [];
+  for (let i = Math.max(a, 0); i <= b && i < src.length; i++)
+    if (isKind(kinds[i], 'ftn-character')) cues.push(i);
+
+  let at = cues.length >= 2 ? cues[cues.length - 1]
+         : cues.length === 1 ? cues[0] : -1;
+
+  if (at < 0) {
+    for (let i = Math.min(a, src.length - 1); i >= 0; i--) {
+      if (isKind(kinds[i], 'ftn-character')) { at = i; break; }
+      // only a parenthetical or the speech itself sits under a cue;
+      // anything else means the caret isn't in a speech at all
+      if (!isKind(kinds[i], 'ftn-dialogue') && !isKind(kinds[i], 'ftn-paren')) break;
+    }
+  }
+  if (at < 0) return null;
+
+  const text = src[at];
+  return { line: at, text: FTN_DUAL.test(text)
+    ? text.replace(FTN_DUAL, '')
+    : text.replace(/[ \t]*$/, '') + ' ^' };
+}
+
 /* ---------- on the way out to a file ---------- */
 
 /* The capitals the app puts on are on the page and in the file both,
@@ -346,5 +493,6 @@ function ftnText(src, start) {
 // Node (a test run, or a future build tool) sees module; the browser
 // doesn't and skips this
 if (typeof module !== 'undefined') {
-  module.exports = { ftnKinds, ftnRuns, ftnText, isKind, FTN_CLASSES, FTN_CAPS, isShout };
+  module.exports = { ftnKinds, ftnRuns, ftnText, ftnNames, ftnDual, ftnFade,
+                     cueName, isKind, FTN_CLASSES, FTN_CAPS, FTN_DUAL_CLS, isShout };
 }

@@ -209,6 +209,31 @@ body {
   color: color-mix(in srgb, var(--ink) 72%, var(--dim));
 }
 
+/* A dual speech sits alongside the one before it rather than under it.
+   Two real columns aren't available in a single flow of lines, so the
+   second speech is pushed right instead — enough to read as "at the same
+   time" without pretending to be a rendered page.
+
+   Set as a share of the column rather than in em, so the second speech
+   keeps a usable width to wrap into. Fixed indents deep enough to read
+   as "alongside" leave a two-character ribbon on a 38rem page. */
+.editor > .ftn-character.ftn-dual { padding-left: 55%; }
+.editor > .ftn-paren.ftn-dual     { padding-left: 52%; }
+.editor > .ftn-dialogue.ftn-dual  { padding-left: 48%; padding-right: 0; }
+
+/* The title page. Dim like the other scaffolding, because it is the
+   file's business rather than the script's. */
+.editor > .ftn-title { color: var(--dim); }
+
+/* The suggested rest of a character's name. Painted, never typed: this
+   is a pseudo-element, so it is not a child node, and nothing that reads
+   the line — getText(), currentRuns(), the caret — can see it at all. */
+.editor > [data-ghost]::after {
+  content: attr(data-ghost);
+  color: var(--dim);
+  pointer-events: none;
+}
+
 .editor > .ftn-lyric    { font-style: italic; }
 .editor > .ftn-synopsis { color: var(--dim); font-style: italic; }
 

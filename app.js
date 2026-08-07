@@ -319,12 +319,121 @@ function refresh() {
   // have told us — see the note on openLine
   openLine = caretLine();
   const { rows, src, modes, kinds } = readDoc();
-  setFountain(modes.fountain);
+  const flipped = setFountain(modes.fountain);
   // decorate before measuring: a heading stands taller than a line of
   // poem, so every offsetTop read below has to be the settled one
   for (let i = 0; i < rows.length; i++)
     decorate(rows[i], i < modes.lines, modes.simple, kinds && kinds[i]);
   measure(rows, src, modes);
+  setGhost(rows, src, modes, kinds);
+
+  // Both of these rewrite the document, so they go last and each starts
+  // a fresh refresh() of its own rather than trying to patch this one.
+  if (flipped && modes.fountain) seedScript(modes.lines);
+  else if (modes.fountain) tidyFades();
+}
+
+/* ---------- the two things that write to the page ---------- */
+
+/* A script opens on a cover. Fountain's title page is Key: value lines
+ * at the top of the file, and every renderer that reads the format turns
+ * them into one, so a script that leaves without them is a script that
+ * arrives anonymous.
+ *
+ * Real text, not a placeholder: it saves, it exports, it deletes, and
+ * backspace is the only thing you need to know to be rid of it.
+ */
+const COVER = ['Title:', 'Author:', 'Draft date:', 'Contact:', '', '> FADE IN:', ''];
+
+/* Seeded on the one keystroke that turns the mode on, and only into a
+ * page with nothing under that line. Delete the cover and it stays
+ * deleted — the flag doesn't flip twice.
+ */
+function seedScript(modeLines) {
+  const rows = [...editor.children];
+  for (let i = modeLines; i < rows.length; i++)
+    if (plain(rows[i].textContent).trim()) return;
+
+  commit(); // the cover is one undo step, not seven
+  const keep = rows.slice(0, modeLines);
+  editor.replaceChildren(...keep, ...COVER.map(makeLine));
+  const first = editor.children[keep.length];
+  if (first) placeCaret(first, plain(first.textContent).length);
+  refresh();
+  commit();
+}
+
+/* FADE IN: is a transition to a screenwriter and plain action to
+ * Fountain — it doesn't end in "TO:", which is the only shape the format
+ * knows unaided. So the app writes the forcing '>' into the line.
+ *
+ * Into the line, where you can see it. This is a plain-text format and
+ * the whole value of one is that the text is the truth: a writer who
+ * meets the mark here can open a draft in Notes or a Google Doc and
+ * still write something a renderer will read correctly. Adding it
+ * silently at export would teach the opposite, and teach it invisibly.
+ *
+ * Never on the line the caret is on. A writer mid-word is not asking for
+ * help, and rewriting underneath them is how an editor loses their
+ * trust — so the line is tidied once they've left it.
+ */
+let fixing = false;
+
+function tidyFades() {
+  if (fixing) return;
+  const jobs = [];
+  for (const row of editor.children) {
+    if (row === openLine) continue;
+    const src = plain(row.textContent);
+    const out = ftnFade(src);
+    if (out !== null && out !== src) jobs.push([row, out]);
+  }
+  if (!jobs.length) return;
+
+  fixing = true;
+  commit();
+  for (const [row, text] of jobs) row.textContent = text;
+  refresh();
+  commit();
+  fixing = false;
+}
+
+/* ---------- who's speaking ---------- */
+
+/* The dim rest of a character's name, offered on a line that is shaping
+ * up to be a cue. Tab takes it.
+ *
+ * Drawn by style.css as ::after from this attribute, and that is the
+ * whole design rather than a detail of it. A pseudo-element is not a
+ * child node, so getText() can't see it, the draft and the export can't
+ * contain it, currentRuns() can't call it foreign and repaint forever,
+ * and the caret cannot land inside it. Every one of those is a bug that
+ * putting real text on the line would have had to solve.
+ */
+let ghostLine = null;
+
+function setGhost(rows, src, modes, kinds) {
+  if (ghostLine) { ghostLine.removeAttribute('data-ghost'); ghostLine = null; }
+  if (!modes.fountain || !openLine) return;
+
+  const i = rows.indexOf(openLine);
+  if (i < 0) return;
+  const t = src[i].trim();
+  // a cue needs a blank line above it, so a line without one isn't one
+  // yet and shouldn't be offered a name
+  if (!t || (i > modes.lines && src[i - 1].trim())) return;
+  // and the caret has to be at the end, or the suggestion would be about
+  // text the writer has already moved past
+  if (caretOffset(openLine) !== src[i].length) return;
+
+  const up = t.toUpperCase();
+  const hits = ftnNames(src, modes.lines, kinds)
+    .filter(n => n.length > t.length && n.toUpperCase().startsWith(up));
+  // two candidates and a ghost would be a lie about what Tab will do
+  if (hits.length !== 1) return;
+
+  ghostLine = openLine;
+  openLine.dataset.ghost = hits[0].slice(t.length);
 }
 
 // the caret moved on its own — no edit, so nothing needs repainting
@@ -337,8 +446,9 @@ function openCaretLine() {
   openLine = row;
   // marks appearing widen the line they are on, which can shift every
   // number below it
-  const { rows, src, modes } = readDoc();
+  const { rows, src, modes, kinds } = readDoc();
   measure(rows, src, modes);
+  setGhost(rows, src, modes, kinds);
 }
 
 // the margin numbers and the total. The new spans collect in a
@@ -504,14 +614,17 @@ function setTotalMode(mode) {
  * never finishes: a writer typing steadily would watch a timer that
  * never moved.
  */
+// → true if the mode actually changed, which is the moment the cover
+// page gets seeded and the only moment it does
 function setFountain(on) {
-  if (on === fountain) return;
+  if (on === fountain) return false;
   fountain = on;
   // the file the export writes is a different file now. Outside a
   // script it depends on whether any marks were used, which changes as
   // you type — so the title names both rather than chase it.
   exportBtn.title = on ? 'Export as .fountain' : 'Export as .md or .txt';
   applyTotal();
+  return true;
 }
 
 totalEl.addEventListener('click', () => {
@@ -732,13 +845,58 @@ editor.addEventListener('compositionend', () => { composing = false; refresh(); 
 // but only the centering is Fountain's own notation, so ⌘K is left
 // available to a poem and ⌘\ isn't.
 editor.addEventListener('keydown', e => {
+  // Tab takes the suggested name, and only when one is showing —
+  // otherwise Tab is left doing whatever it did before
+  if (e.key === 'Tab' && !e.metaKey && !e.ctrlKey && !e.altKey && ghostLine) {
+    const rest = ghostLine.dataset.ghost;
+    e.preventDefault();
+    editLines(t => ({ text: t + rest, s: t.length + rest.length, e: t.length + rest.length }));
+    return;
+  }
+
   if (!(e.metaKey || e.ctrlKey) || e.altKey) return;
   const key = e.key.toLowerCase();
   const mark = (fountain ? FTN_MARKS : MD_MARKS)[key];
   if (mark) { e.preventDefault(); editLines((t, s, x) => markToggle(t, s, x, mark)); return; }
   if (key === 'k') { e.preventDefault(); editLines(upperToggle); return; }
-  if (key === '\\' && fountain) { e.preventDefault(); editLines((t, s) => centerToggle(t, s)); }
+  if (key === '\\' && fountain) { e.preventDefault(); editLines((t, s) => centerToggle(t, s)); return; }
+  // ⌘D is the browser's bookmark; preventDefault takes it back, the same
+  // way ⌘K takes back the address bar
+  if (key === 'd' && fountain) { e.preventDefault(); editDoc(ftnDual); }
 });
+
+/* ⌘D is the one shortcut that isn't about a line.
+ *
+ * "The second cue" is a question about the page, not about the text
+ * under the caret, so ftnDual() is handed the whole document and answers
+ * with the single line to change. Everything else here — closing the
+ * undo step, writing, putting the caret back — is what editLines() does,
+ * minus the per-line loop.
+ */
+function editDoc(fn) {
+  const sel = document.getSelection();
+  if (!sel || !sel.rangeCount) return;
+  const r = sel.getRangeAt(0);
+  const start = pointAt(r.startContainer, r.startOffset, false);
+  const end = pointAt(r.endContainer, r.endOffset, true);
+  if (!start || !end) return;
+
+  const { rows, src, modes } = readDoc();
+  const a = rows.indexOf(start[0]), b = rows.indexOf(end[0]);
+  if (a < 0 || b < 0 || b < a) return;
+
+  const job = fn(src, a, b, modes.lines);
+  if (!job || job.text === src[job.line]) return;
+
+  commit();
+  rows[job.line].textContent = job.text;
+  refresh();
+  const [n, o] = offsetToPoint(rows[job.line], job.text.length);
+  try { sel.setBaseAndExtent(n, o, n, o); } catch (_) {}
+  openCaretLine();
+  commit();
+  resetRun();
+}
 
 // the line div a node sits in, or null for anything outside the editor
 function lineOf(node) {
