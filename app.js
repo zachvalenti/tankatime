@@ -1,12 +1,19 @@
 'use strict';
 
-/* Tanka Time — the whole app in one file, no framework, no build step.
+/* Tanka Time — the editor. No framework, no build step.
  *
- * index.html loads count.js (syllable counting) and then this file,
- * which wires up everything else: the editor, the numbers in the
- * margin, autosave, themes, export, the clear-hold flood, and offline
- * support. Top to bottom it follows the page's life — grab elements,
- * define behavior, attach listeners, restore saved state.
+ * index.html loads six small files before this one, and every one of
+ * them is pure strings: give it text, get text back. count.js counts
+ * syllables and words, simple.js holds the thousand plain words,
+ * modes.js reads what the first line of the page asked for, markdown.js
+ * and fountain.js are the two grammars, and marks.js is what the
+ * keyboard shortcuts do to a line. None of them knows a page exists.
+ *
+ * This file is where a page appears, and it does everything that needs
+ * one: the editor, the numbers in the margin, undo, autosave, themes,
+ * export, the clear-hold flood, offline support. Top to bottom it
+ * follows the page's life — grab elements, define behavior, attach
+ * listeners, restore saved state.
  */
 
 // every element the script touches, grabbed once by id
@@ -139,8 +146,10 @@ function runNode(run) {
 }
 
 // the classes decorate() writes, and a name no run can ever carry —
-// used below to mark markup this file didn't put there
-const MD_OURS = new Set(MD_CLASSES);
+// used below to mark markup this file didn't put there. Both grammars
+// are listed: a class missing from here is named FOREIGN below, and a
+// line wearing it repaints on every keystroke forever.
+const MD_OURS = new Set([...MD_CLASSES, ...FTN_CLASSES]);
 const FOREIGN = '/not ours';
 
 // what a line shows now, in the shape mdRuns() describes it: adjacent
@@ -256,18 +265,24 @@ function flagWords(runs) {
 }
 
 // one line: name its shape for style.css, then repaint it if — and only
-// if — the runs have moved
-function decorate(line, isMode, simple) {
+// if — the runs have moved.
+//
+// `kind` is the line's answer from ftnKinds(), or null in poem mode —
+// Fountain can't read a line without its neighbours, so the shape is
+// worked out for the whole document up in readDoc() and handed down
+// here rather than asked for a line at a time.
+function decorate(line, isMode, simple, kind) {
   if (composing) return;
   const text = plain(line.textContent);
   // the block class names the line's shape; 'open' rides along with it,
   // because writing className outright would otherwise wipe it
-  const cls = [isMode ? 'md-mode' : mdBlock(text).cls, line === openLine ? 'open' : '']
-    .filter(Boolean).join(' ');
+  const shape = isMode ? 'md-mode' : kind ? kind.cls : mdBlock(text).cls;
+  const cls = [shape, line === openLine ? 'open' : ''].filter(Boolean).join(' ');
   if (line.className !== cls) line.className = cls;
 
   // a mode line is not poem, so its words are nobody's business
-  const want = simple && !isMode ? flagWords(mdRuns(text)) : mdRuns(text);
+  const runs = kind && !isMode ? ftnRuns(text, kind) : mdRuns(text);
+  const want = simple && !isMode ? flagWords(runs) : runs;
   if (want.length ? sameRuns(want, currentRuns(line)) : isBare(line)) return;
 
   const off = caretOffset(line);
@@ -287,7 +302,15 @@ function decorate(line, isMode, simple) {
 function readDoc() {
   const rows = [...editor.children];
   const src = rows.map(d => plain(d.textContent));
-  return { rows, src, modes: mdModes(src) };
+  const modes = readModes(src);
+  // Fountain is the one grammar here that can't be read a line at a
+  // time — a shout is a character cue or a line of action depending
+  // entirely on what sits above and below it. So the shapes are worked
+  // out for the whole document in one pass, once, and decorate() is
+  // handed each line's answer. In poem mode there is nothing to work
+  // out ahead: mdBlock() reads a line on its own.
+  const kinds = modes.fountain ? ftnKinds(src, modes.lines) : null;
+  return { rows, src, modes, kinds };
 }
 
 function refresh() {
@@ -295,12 +318,125 @@ function refresh() {
   // ask where the caret is now rather than trusting the last event to
   // have told us — see the note on openLine
   openLine = caretLine();
-  const { rows, src, modes } = readDoc();
+  const { rows, src, modes, kinds } = readDoc();
+  const flipped = setFountain(modes.fountain);
   // decorate before measuring: a heading stands taller than a line of
   // poem, so every offsetTop read below has to be the settled one
   for (let i = 0; i < rows.length; i++)
-    decorate(rows[i], i < modes.lines, modes.simple);
+    decorate(rows[i], i < modes.lines, modes.simple, kinds && kinds[i]);
   measure(rows, src, modes);
+  setGhost(rows, src, modes, kinds);
+
+  // Both of these rewrite the document, so they go last and each starts
+  // a fresh refresh() of its own rather than trying to patch this one.
+  if (flipped && modes.fountain) seedScript(modes.lines);
+  else if (modes.fountain) tidyFades();
+}
+
+/* ---------- the two things that write to the page ---------- */
+
+/* A script opens on a cover. Fountain's title page is Key: value lines
+ * at the top of the file, and every renderer that reads the format turns
+ * them into one, so a script that leaves without them is a script that
+ * arrives anonymous.
+ *
+ * Real text, not a placeholder: it saves, it exports, it deletes, and
+ * backspace is the only thing you need to know to be rid of it.
+ */
+// The blank after Contact: is the title page's terminator — Fountain
+// reads the cover as running from the top until the first empty line —
+// and the one after that is somewhere to start writing.
+const COVER = ['Title:', 'Author:', 'Draft date:', 'Contact:', '', ''];
+
+/* Seeded on the one keystroke that turns the mode on, and only into a
+ * page with nothing under that line. Delete the cover and it stays
+ * deleted — the flag doesn't flip twice.
+ */
+function seedScript(modeLines) {
+  const rows = [...editor.children];
+  for (let i = modeLines; i < rows.length; i++)
+    if (plain(rows[i].textContent).trim()) return;
+
+  commit(); // the cover is one undo step, not seven
+  const keep = rows.slice(0, modeLines);
+  editor.replaceChildren(...keep, ...COVER.map(makeLine));
+  const first = editor.children[keep.length];
+  if (first) placeCaret(first, plain(first.textContent).length);
+  refresh();
+  commit();
+}
+
+/* FADE IN: is a transition to a screenwriter and plain action to
+ * Fountain — it doesn't end in "TO:", which is the only shape the format
+ * knows unaided. So the app writes the forcing '>' into the line.
+ *
+ * Into the line, where you can see it. This is a plain-text format and
+ * the whole value of one is that the text is the truth: a writer who
+ * meets the mark here can open a draft in Notes or a Google Doc and
+ * still write something a renderer will read correctly. Adding it
+ * silently at export would teach the opposite, and teach it invisibly.
+ *
+ * Never on the line the caret is on. A writer mid-word is not asking for
+ * help, and rewriting underneath them is how an editor loses their
+ * trust — so the line is tidied once they've left it.
+ */
+let fixing = false;
+
+function tidyFades() {
+  if (fixing) return;
+  const jobs = [];
+  for (const row of editor.children) {
+    if (row === openLine) continue;
+    const src = plain(row.textContent);
+    const out = ftnFade(src);
+    if (out !== null && out !== src) jobs.push([row, out]);
+  }
+  if (!jobs.length) return;
+
+  fixing = true;
+  commit();
+  for (const [row, text] of jobs) row.textContent = text;
+  refresh();
+  commit();
+  fixing = false;
+}
+
+/* ---------- who's speaking ---------- */
+
+/* The dim rest of a character's name, offered on a line that is shaping
+ * up to be a cue. Tab takes it.
+ *
+ * Drawn by style.css as ::after from this attribute, and that is the
+ * whole design rather than a detail of it. A pseudo-element is not a
+ * child node, so getText() can't see it, the draft and the export can't
+ * contain it, currentRuns() can't call it foreign and repaint forever,
+ * and the caret cannot land inside it. Every one of those is a bug that
+ * putting real text on the line would have had to solve.
+ */
+let ghostLine = null;
+
+function setGhost(rows, src, modes, kinds) {
+  if (ghostLine) { ghostLine.removeAttribute('data-ghost'); ghostLine = null; }
+  if (!modes.fountain || !openLine) return;
+
+  const i = rows.indexOf(openLine);
+  if (i < 0) return;
+  const t = src[i].trim();
+  // a cue needs a blank line above it, so a line without one isn't one
+  // yet and shouldn't be offered a name
+  if (!t || (i > modes.lines && src[i - 1].trim())) return;
+  // and the caret has to be at the end, or the suggestion would be about
+  // text the writer has already moved past
+  if (caretOffset(openLine) !== src[i].length) return;
+
+  const up = t.toUpperCase();
+  const hits = ftnNames(src, modes.lines, kinds)
+    .filter(n => n.length > t.length && n.toUpperCase().startsWith(up));
+  // two candidates and a ghost would be a lie about what Tab will do
+  if (hits.length !== 1) return;
+
+  ghostLine = openLine;
+  openLine.dataset.ghost = hits[0].slice(t.length);
 }
 
 // the caret moved on its own — no edit, so nothing needs repainting
@@ -313,8 +449,9 @@ function openCaretLine() {
   openLine = row;
   // marks appearing widen the line they are on, which can shift every
   // number below it
-  const { rows, src, modes } = readDoc();
+  const { rows, src, modes, kinds } = readDoc();
   measure(rows, src, modes);
+  setGhost(rows, src, modes, kinds);
 }
 
 // the margin numbers and the total. The new spans collect in a
@@ -332,6 +469,14 @@ function measure(rows, src, modes) {
     // number beside it and nothing of it in either total. 'any' still
     // turns true so the 5·7·5·7·7 hint doesn't sit on top of it.
     if (i < modes.lines) { any = true; continue; }
+    // a script has no form to hold it to. Counting the syllables in a
+    // line of dialogue would produce a number about nothing, so it
+    // isn't counted at all — no margin, no target, no total. Words
+    // still add up, because that face of the total is the one left.
+    if (modes.fountain) {
+      if (src[i].trim()) { any = true; words += countWords(src[i]); }
+      continue;
+    }
     // a title stands outside the form: nothing in the margin, no
     // syllables in the total, and a fresh tanka opens beneath it
     if (head[i]) {
@@ -397,6 +542,28 @@ let totalMode = MODES.includes(localStorage.getItem(TOTAL_KEY))
   ? localStorage.getItem(TOTAL_KEY) : 'syllables';
 let totals = { syllables: 0, words: 0 };
 
+/* /fountain removes one of the three faces, and the removal has to be
+ * temporary in a way the stored setting is not.
+ *
+ * The face is a setting: global, remembered, chosen once and kept. The
+ * mode is a property of the document: it lives in the first line, and
+ * deleting that line has to give everything back. So writing 'words'
+ * into storage the moment a script starts would be the wrong kind of
+ * permanent — a poem opened afterwards would have lost its syllables,
+ * with nothing on the page to explain why.
+ *
+ * Instead the stored face is left exactly as it was and read through
+ * here. Syllables become words while a script is open, and the poem's
+ * own setting is still underneath when the script closes.
+ */
+let fountain = false;
+
+function faces() { return fountain ? ['words', 'timer'] : MODES; }
+
+function shownMode() {
+  return fountain && totalMode === 'syllables' ? 'words' : totalMode;
+}
+
 // the timer counts this sitting only: it starts when the page loads,
 // so a refresh or a fresh launch starts it over. No clock state is
 // saved anywhere — that keeps it honest and the display small.
@@ -413,30 +580,62 @@ function fmtClock(ms) {
 }
 
 function renderTotal() {
-  if (totalMode === 'timer') {
+  const mode = shownMode();
+  if (mode === 'timer') {
     totalEl.textContent = fmtClock(Date.now() - SESSION_T0);
     return;
   }
-  const n = totals[totalMode];
-  const noun = totalMode === 'words' ? 'word' : 'syllable';
+  const n = totals[mode];
+  const noun = mode === 'words' ? 'word' : 'syllable';
   totalEl.textContent = n ? `${n} ${noun}${n === 1 ? '' : 's'}` : '';
+}
+
+// everything the chosen face changes on the page. Kept apart from the
+// remembering below because the mode can take the choice away without
+// the writer having chosen anything.
+function applyTotal() {
+  const mode = shownMode();
+  // the margin numbers are syllable counts; on the other faces they'd
+  // contradict the total, so the gutter rests until syllables return.
+  // (the native hidden attribute is display:none without any CSS)
+  gutter.hidden = mode !== 'syllables';
+  // the once-a-second tick exists only while the timer face is up
+  clearInterval(clockTimer);
+  clockTimer = mode === 'timer' ? setInterval(renderTotal, 1000) : 0;
+  renderTotal();
 }
 
 function setTotalMode(mode) {
   totalMode = mode;
   try { localStorage.setItem(TOTAL_KEY, mode); } catch (_) {}
-  // the margin numbers are syllable counts; on the other faces they'd
-  // contradict the total, so the gutter rests until syllables return.
-  // (the native hidden attribute is display:none without any CSS)
-  gutter.hidden = totalMode !== 'syllables';
-  // the once-a-second tick exists only while the timer face is up
-  clearInterval(clockTimer);
-  clockTimer = totalMode === 'timer' ? setInterval(renderTotal, 1000) : 0;
-  renderTotal();
+  applyTotal();
+}
+
+/* Called from every refresh, which is why it does nothing at all unless
+ * the answer has changed. applyTotal() restarts the clock's once-a-
+ * second tick, and running it on each keystroke would mean the second
+ * never finishes: a writer typing steadily would watch a timer that
+ * never moved.
+ */
+// → true if the mode actually changed, which is the moment the cover
+// page gets seeded and the only moment it does
+function setFountain(on) {
+  if (on === fountain) return false;
+  fountain = on;
+  // the file the export writes is a different file now. Outside a
+  // script it depends on whether any marks were used, which changes as
+  // you type — so the title names both rather than chase it.
+  exportBtn.title = on ? 'Export as .fountain' : 'Export as .md or .txt';
+  applyTotal();
+  return true;
 }
 
 totalEl.addEventListener('click', () => {
-  setTotalMode(MODES[(MODES.indexOf(totalMode) + 1) % MODES.length]);
+  const f = faces();
+  // from a face the mode has taken away, the next click lands on the
+  // first one it left
+  const i = f.indexOf(shownMode());
+  setTotalMode(f[(i + 1) % f.length]);
 });
 
 /* ---------- persistence ---------- */
@@ -640,13 +839,67 @@ editor.addEventListener('compositionend', () => { composing = false; refresh(); 
 // Without this handler the browser answers these itself and injects
 // <b>/<i>/<u> into the line — markup that looks right until getText()
 // flattens it away on the next save. Here they write Markdown instead.
+// (⌘U is the one that differs: Markdown underlines with two
+// underscores here and Fountain with one, so the table is chosen by
+// mode. markToggle() does the string arithmetic for both unchanged.)
+//
+// ⌘K shouts a word and ⌘\ centers a line. Both are here for the script
+// — a screenplay is written in capitals more than anything else is —
+// but only the centering is Fountain's own notation, so ⌘K is left
+// available to a poem and ⌘\ isn't.
 editor.addEventListener('keydown', e => {
+  // Tab takes the suggested name, and only when one is showing —
+  // otherwise Tab is left doing whatever it did before
+  if (e.key === 'Tab' && !e.metaKey && !e.ctrlKey && !e.altKey && ghostLine) {
+    const rest = ghostLine.dataset.ghost;
+    e.preventDefault();
+    editLines(t => ({ text: t + rest, s: t.length + rest.length, e: t.length + rest.length }));
+    return;
+  }
+
   if (!(e.metaKey || e.ctrlKey) || e.altKey) return;
-  const mark = MD_MARKS[e.key.toLowerCase()];
-  if (!mark) return;
-  e.preventDefault();
-  toggleMark(mark);
+  const key = e.key.toLowerCase();
+  const mark = (fountain ? FTN_MARKS : MD_MARKS)[key];
+  if (mark) { e.preventDefault(); editLines((t, s, x) => markToggle(t, s, x, mark)); return; }
+  if (key === 'k') { e.preventDefault(); editLines(upperToggle); return; }
+  if (key === '\\' && fountain) { e.preventDefault(); editLines((t, s) => centerToggle(t, s)); return; }
+  // ⌘D is the browser's bookmark; preventDefault takes it back, the same
+  // way ⌘K takes back the address bar
+  if (key === 'd' && fountain) { e.preventDefault(); editDoc(ftnDual); }
 });
+
+/* ⌘D is the one shortcut that isn't about a line.
+ *
+ * "The second cue" is a question about the page, not about the text
+ * under the caret, so ftnDual() is handed the whole document and answers
+ * with the single line to change. Everything else here — closing the
+ * undo step, writing, putting the caret back — is what editLines() does,
+ * minus the per-line loop.
+ */
+function editDoc(fn) {
+  const sel = document.getSelection();
+  if (!sel || !sel.rangeCount) return;
+  const r = sel.getRangeAt(0);
+  const start = pointAt(r.startContainer, r.startOffset, false);
+  const end = pointAt(r.endContainer, r.endOffset, true);
+  if (!start || !end) return;
+
+  const { rows, src, modes } = readDoc();
+  const a = rows.indexOf(start[0]), b = rows.indexOf(end[0]);
+  if (a < 0 || b < 0 || b < a) return;
+
+  const job = fn(src, a, b, modes.lines);
+  if (!job || job.text === src[job.line]) return;
+
+  commit();
+  rows[job.line].textContent = job.text;
+  refresh();
+  const [n, o] = offsetToPoint(rows[job.line], job.text.length);
+  try { sel.setBaseAndExtent(n, o, n, o); } catch (_) {}
+  openCaretLine();
+  commit();
+  resetRun();
+}
 
 // the line div a node sits in, or null for anything outside the editor
 function lineOf(node) {
@@ -670,10 +923,19 @@ function pointAt(container, offset, atEnd) {
   return row ? [row, offsetIn(row, container, offset)] : null;
 }
 
-// Marks apply a line at a time. That isn't only the simpler path —
-// Markdown emphasis can't cross a line break, so a mark per line is
-// what any later reader of the source would need anyway.
-function toggleMark(mark) {
+/* Every shortcut works a line at a time. That isn't only the simpler
+ * path — emphasis can't cross a line break in either notation, so a
+ * mark per line is what any later reader of the source would need
+ * anyway.
+ *
+ * `fn` is the whole difference between one shortcut and the next: it
+ * takes a line and a range and answers with the new line and where the
+ * selection lands, and every one of them lives in marks.js knowing
+ * nothing about the DOM. This function does the rest — reading the
+ * selection, closing off the undo step, writing the lines back to
+ * front, and putting the caret where fn asked for it.
+ */
+function editLines(fn) {
   const sel = document.getSelection();
   if (!sel || !sel.rangeCount) return;
   const r = sel.getRangeAt(0);
@@ -697,7 +959,7 @@ function toggleMark(mark) {
     if (a !== b && !src.trim()) { jobs.push({ row: rows[i], src, text: src, s: 0, e: 0 }); continue; }
     const s = i === a ? start[1] : 0;
     const e = i === b ? end[1] : src.length;
-    jobs.push({ row: rows[i], src, ...mdToggle(src, s, e, mark) });
+    jobs.push({ row: rows[i], src, ...fn(src, s, e) });
   }
 
   // back to front, so the offsets measured above stay true. Writing the
@@ -756,14 +1018,32 @@ fsBtn.addEventListener('click', () => {
 // point a throwaway <a> at it, and click the link on the user's behalf
 exportBtn.addEventListener('click', () => {
   // whatever the first line asked for was for the room, not the file
-  const src = getText().split('\n');
-  const text = src.slice(mdModes(src).lines).join('\n').replace(/^\n+/, '');
+  const all = getText().split('\n');
+  const modes = readModes(all);
+  // the capitals a script wears on the page go into the file too — see
+  // ftnText(), and the note there about what a lowercase slugline costs
+  const lines = (modes.fountain ? ftnText(all, modes.lines) : all).slice(modes.lines);
+  const text = lines.join('\n').replace(/^\n+/, '');
   if (!text.trim()) return;
-  const blob = new Blob([text + '\n'], { type: 'text/markdown;charset=utf-8' });
+
+  /* Three files, and the page decides which by what's actually on it.
+   *
+   * A script is Fountain. A page that reached for a mark is Markdown.
+   * A page that never did is neither: a tanka with no notation in it is
+   * a poem, and handing it over as .md tells the next program to go
+   * looking for a grammar that was never used. So it leaves as .txt,
+   * which is the truth about it.
+   */
+  const script = modes.fountain;
+  const marked = !script && mdUsed(lines);
+  const name = script ? 'script' : 'tanka';
+  const ext = script ? 'fountain' : marked ? 'md' : 'txt';
+  const type = marked ? 'text/markdown' : 'text/plain';
+  const blob = new Blob([text + '\n'], { type: type + ';charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `tanka-${new Date().toISOString().slice(0, 10)}.md`;
+  a.download = `${name}-${new Date().toISOString().slice(0, 10)}.${ext}`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 });

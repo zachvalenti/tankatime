@@ -23,8 +23,9 @@ A quiet room for tanka. WriteRoom inspired full-screen writing with a syllable c
   the typing becomes deleting, when the caret moves elsewhere, when a word
   is finished, or when the typing stops.
 - Everything autosaves to the browser (localStorage). No accounts, no cloud.
-- `md` exports the page as a Markdown file; `◐` cycles themes
-  (green room → creme paper → dusk).
+- `export` saves the page: Markdown if you used any, plain text if you
+  didn't — a poem with no marks in it isn't a Markdown file. `◐` cycles
+  themes (green room → creme paper → dusk).
 - `?` (bottom left) opens a short note on the tanka form and why the
   app exists.
 - `clear` wipes the page — hold it while the color rises for three
@@ -51,19 +52,42 @@ works as a plain page.)
 
 ## Files
 
-- `index.html`, `style.css`, `app.js` — the whole app, no dependencies
+- `index.html`, `style.css` — the page and its themes
+- `app.js` — the editor: decoration, the margin, undo, autosave, export,
+  the clear-hold flood. The only file with a DOM in it
 - `count.js` — syllable counting: hand overrides → dictionary → heuristic
-- `md.js` — the Markdown grammar: what a line is, where the marks fall,
-  and what ⌘B/I/U do to a line of text. Pure strings, no DOM
+- `simple.js` — the thousand plain words, and how generously to match them
+- `modes.js` — what the first line of the page can ask for
+- `markdown.js` — the Markdown grammar: what a line is, and where the
+  marks fall
+- `fountain.js` — the same job for Fountain, the screenplay notation.
+  Unlike Markdown it can't read a line without its neighbours, so this
+  one reads the whole page in a pass
+- `marks.js` — what ⌘B/I/U/K/\ do to a line of text
 - `syllables.json` — generated word list: the CMU dictionary words the
   heuristic would get wrong (don't edit by hand)
+
+Everything but `app.js` is pure strings: give it text, get text back.
+None of them knows a page exists, which is why they can be read — and
+tested — on their own.
 - `tools/build-syllables.mjs` — regenerates `syllables.json`; see its
   header comment for where to get the CMU dictionary source
 - `sw.js` — offline cache
 - `manifest.webmanifest`, `icon.svg`, `icon-*.png`, `apple-touch-icon.png` — PWA install assets
 
-The code is commented as a guided tour — if you're learning to code,
-reading `app.js` top to bottom is the intended path.
+The code is commented as a guided tour. If you're learning to code, the
+intended path is the order `index.html` loads them in — what a word is,
+then what a line is, then what the page does with them:
+
+```
+count.js → simple.js → modes.js → markdown.js → fountain.js → marks.js → app.js
+```
+
+`app.js` is the long one and can be read top to bottom on its own; it
+follows the page's life, from grabbing elements to restoring the draft.
+The comments explain why a thing is done that way, not what the line
+says — the interesting parts are usually the ones that look like they
+could be simpler.
 
 ## Rebuilding the word list
 

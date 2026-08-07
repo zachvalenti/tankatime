@@ -41,7 +41,8 @@
   <div class="tools">
     <button id="clear" class="tool clear" title="Hold 3 seconds to clear"
             aria-label="Clear everything — hold for three seconds">clear</button>
-    <button id="export" class="tool" title="Export as .md" aria-label="Export as Markdown">md</button>
+    <!-- one button, two files: .md for a poem, .fountain for a script -->
+    <button id="export" class="tool" title="Export as .md" aria-label="Export">export</button>
     <button id="theme" class="tool" title="Switch theme" aria-label="Switch theme">◐</button>
     <button id="fs" class="tool fs" title="Fullscreen" aria-label="Toggle fullscreen">⛶</button>
   </div>
@@ -106,10 +107,17 @@
   here</a>.</p>
   <button id="aboutGo" class="go">✍️</button>
 </dialog>
-<!-- classic scripts run in order: count.js and md.js first, so their
-     counting and grammar functions exist by the time app.js calls them -->
-<script src="count.js"></script>
-<script src="md.js"></script>
-<script src="app.js"></script>
+<!-- Classic scripts, sharing one scope and running in order — so every
+     function exists by the time app.js calls it. They're listed the way
+     they're meant to be read: what a word is, then what a line is, then
+     what the page does with them. Only the last one has a DOM in it. -->
+<script src="count.js"></script>     <!-- syllables and words -->
+<script src="simple.js"></script>    <!-- the thousand plain words -->
+<script src="modes.js"></script>     <!-- what the first line can ask for -->
+<script src="markdown.js"></script>  <!-- the Markdown grammar -->
+<script src="fountain.js"></script>  <!-- the Fountain grammar -->
+<script src="marks.js"></script>     <!-- what ⌘B/I/U/K/\ do to a line -->
+<script src="app.js"></script>       <!-- the editor, and everything with a DOM -->
+
 </body>
 </html>

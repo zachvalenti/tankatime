@@ -48,6 +48,62 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
   `__underline__`, `> quote`, `- list`. Line classes are on the line divs
   (`md-h1`, `md-quote`, `md-list`), the marks are `.md-mark` spans inside.
   `getText()` must round-trip the source exactly — decoration is only paint.
+- Fountain (`/fountain` on the first line, `fountain.js`): line classes are
+  `ftn-scene`, `ftn-character`, `ftn-paren`, `ftn-dialogue`, `ftn-action`,
+  `ftn-transition`, `ftn-centered`, `ftn-section`, `ftn-synopsis`,
+  `ftn-lyric`, `ftn-bone`, `ftn-title`, plus the two second classes —
+  `ftn-caps` on the lines the app shouts for you, `ftn-dual` on a speech
+  set alongside its neighbour. Assert `#gutter` is `hidden` with no spans,
+  and that the total never reaches the syllable face.
+
+  **Typing `/fountain` into an empty page now seeds a cover**, so a fixture
+  laid down keystroke by keystroke lands inside it. Use a helper that sets
+  the whole script at once (`setText` + `refresh`): the mode flag then
+  flips against a body that is already written, and the seed declines. Keep
+  real typing for the seed and suggestion flows themselves.
+
+  Things worth driving:
+  - **Context**, the reason `ftnKinds()` reads the document instead of the
+    line. A cue *always* needs a blank line above it — `MAYA` under
+    `He turns.` or under a slugline is `ftn-action`, and `@MAYA` is the
+    only way round it. A cue with nothing under it is action too. This is
+    strict on purpose: the editor and screenplain apply the same rule, so
+    a script that reads right here reads right there.
+  - **A speech runs to the next blank line.** Consecutive lines under a cue
+    are all `ftn-dialogue`; `(beat)` between them is `ftn-paren`. Only a
+    blank line returns you to action.
+  - **The cover.** `/fountain` into an empty page seeds Title/Author/Draft
+    date/Contact as *real text*, in one undo step, ending on the blank line
+    that terminates a Fountain title page. Delete it and it must stay
+    deleted; a page with writing in it must never get one.
+  - **`FADE IN:` is marked in the editor, not at export** — `ftnFade()`
+    writes the `>` into the line, and never into the line the caret is on.
+    Check `getText()`, not just the class.
+  - **Suggestions are a pseudo-element.** `data-ghost` on the line div,
+    painted by CSS `::after`. The assertions that matter are that
+    `getText()` never contains it and that repeated `refresh()` doesn't
+    change `editor.innerHTML` — real text on the line would fail both.
+    Ambiguous prefixes must show nothing; a name must stop being offered
+    once its last cue is deleted.
+  - **Dual dialogue layout needs a width assertion, not just a class one.**
+    "Indented further right" passes happily while the speech has collapsed
+    to one character per line. Compare usable width against the plain
+    dialogue line, and check the line hasn't grown taller.
+  - **Caps**: type `int. kitchen - night` and `cut to:` in lower case. Both
+    must be recognised, both must compute to `text-transform: uppercase`,
+    the *draft* must keep your casing, and the exported file must not —
+    check the download body, not just the filename. Forced (`.`/`>`/`@`)
+    lines keep whatever case you gave them.
+  - ⌘U writes `_x_` here and `__x__` in poem mode; ⌘K shouts the word under
+    the caret and toggles back; ⌘\ wraps a line in `> <` and is inert
+    outside a script; ⌘D puts the `^` on the *second* cue in the selection
+    (`ftnDual()`, the one shortcut that reads the whole document); Tab
+    takes a suggestion and is otherwise left alone.
+  - `localStorage['tanka-time-total']` is *unchanged* by the mode — the
+    face is borrowed, not overwritten.
+- Export picks its extension from the page: `.fountain` for a script,
+  `.md` for a page that used a mark, `.txt` for one that didn't
+  (`mdUsed()` in `markdown.js`). Worth asserting all three.
 - Undo is the app's own (`app.js`), not the browser's — decoration rewrites
   the nodes a native undo would need. A step ends when the edit kind changes
   (typing → deleting), when the caret moved between edits, on a word
