@@ -127,18 +127,26 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
     takes a suggestion (see above) and is otherwise left alone.
   - `localStorage['tanka-time-total']` is *unchanged* by the mode — the
     face is borrowed, not overwritten.
-- **The bar and the soft keyboard** (`barLift()`, `placeBar()`, `barAside()` in
-  `app.js`). A phone keyboard shrinks the visual viewport and leaves the layout
-  viewport alone, so `position: fixed; bottom: 0` lands behind it and iOS drags
-  the bar about as you scroll. Headless Chromium reproduces none of that —
-  what *is* testable here is the arithmetic (`barLift(844, 400, 100) === 344`;
-  anything under `KEY_MIN` is `0`), that the whole mechanism stays inert with
-  no keyboard (`bar.style.transform === ''`, no `lifted`/`away`), and the
-  stepping-aside wiring: `lifted` is the state, so add it by hand, dispatch a
-  `scroll`, and the bar takes `away` and settles back after `SETTLE_MS`. The
-  fade must be opacity only — the transform is busy holding the lift, and two
-  rules on one property is where a stutter comes from. Everything else about
-  this needs a real phone.
+- **The bar and the soft keyboard** (`keyboardUp()`, `placeBar()` in `app.js`).
+  A phone keyboard shrinks the visual viewport and leaves the layout viewport
+  alone, so `position: fixed; bottom: 0` lands behind it and iOS drags the bar
+  about as you scroll. Lifting it to sit above the keyboard was tried and
+  rejected on the phone — it stops drifting and starts *hovering*, which reads
+  as jank with better manners. So the bar leaves instead, and the whole class
+  of bug leaves with it.
+
+  The catch that makes this work at all: there is no way to dismiss a soft
+  keyboard over a contenteditable, and `page`'s `mousedown` used to hand focus
+  straight back, so a hidden bar would be hidden for the session. While `down`
+  is on the bar, a tap in the empty room blurs instead — **test both
+  directions**, because the tap that starts you writing has to survive.
+
+  Headless Chromium reproduces none of the iOS behaviour. What *is* testable:
+  `keyboardUp(844, 400, 100)` is true and anything under `KEY_MIN` is false;
+  no `down` class with no keyboard; adding `down` by hand takes the bar to
+  `opacity: 0` *and* `visibility: hidden` (an invisible row of live buttons
+  across the foot of the page is the failure); and neither state moves a line's
+  `offsetTop`. Everything else needs a real phone.
 - Export picks its extension from the page: `.fountain` for a script,
   `.md` for a page that used a mark, `.txt` for one that didn't
   (`mdUsed()` in `markdown.js`). Worth asserting all three.
