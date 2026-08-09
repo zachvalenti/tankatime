@@ -275,7 +275,44 @@ body {
   font-size: .8rem;
   color: var(--dim);
   letter-spacing: .05em;
+  transition: opacity .18s ease;
 }
+
+/* Lifted: a phone keyboard is up and app.js has raised the bar to sit on
+   top of it (see the note there — the keyboard covers the page rather
+   than shortening it, so this can't be done in CSS alone).
+ *
+ * Up there the bar has the writing behind it rather than the empty foot
+ * of the page, and dim chrome over dim text is a muddle. So it carries a
+ * short wash of the room's own color, fading up into nothing — enough to
+ * read the count against, not so much as to be a surface. The wash is
+ * drawn outside the box on purpose: padding would move the buttons, and
+ * this has to be paint. */
+.bar.lifted {
+  /* solid as far up as the buttons reach, fading only in the padding
+     above them — a wash that starts fading behind the glyphs lets the
+     writing show through them, which is worse than no wash at all */
+  background: linear-gradient(to top, var(--bg) 72%, transparent);
+  /* room above the buttons for the wash to fade out in. The bar is
+     bottom-anchored, so this grows the box upward and leaves the buttons
+     exactly where they were — the alternative, painting the fade outside
+     the box with a shadow, gives it a hard top edge to end on.
+
+     Kept tight on purpose. Every pixel the bar gains up here comes out of
+     the strip the phone leaves clear above its keyboard for the line you
+     are writing, and a bar that covers the caret would have traded one
+     complaint for a worse one. */
+  padding-top: 1.1rem;
+  /* the home-bar inset is under the keyboard now; keeping it is a gap */
+  padding-bottom: .5rem;
+}
+
+/* Away: the page is being dragged. Opacity only — the transform is busy
+   holding the bar above the keyboard, and two rules fighting over one
+   property is how a thing starts to stutter. */
+.bar.away { opacity: 0; }
+.bar.away .tools,
+.bar.away .total { pointer-events: none; }
 
 .tools {
   display: flex;
