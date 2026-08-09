@@ -16,6 +16,7 @@
   --dim:  #3d5c46;   /* quiet chrome: counts, buttons, borders */
   --hit:  #4ade80;   /* a line that meets its target */
   --over: #d98a62;   /* a line that runs past it */
+  --flag: #e05252;   /* a word from outside the thousand */
   --tide: #58a6c8;   /* the clear-hold water */
   --sel:  rgba(74, 222, 128, .25);
   --fs:   clamp(17px, 2.4vw, 21px); /* fluid type with a floor and ceiling */
@@ -29,6 +30,7 @@
   --dim:  #b3a789;
   --hit:  #2f7d46;
   --over: #c05f33;
+  --flag: #c0392b;
   --tide: #3d7ea6;
   --sel:  rgba(47, 125, 70, .22);
   color-scheme: light;
@@ -41,6 +43,7 @@
   --dim:  #5d5372;
   --hit:  #ffcf6e;
   --over: #e2725b;
+  --flag: #ef6f6f;
   --tide: #6ea8d8;
   --sel:  rgba(230, 201, 143, .25);
 }
@@ -117,6 +120,133 @@ body {
 /* app.js labels each count via data-state; colors hang off that */
 .gutter span[data-state="hit"]  { color: var(--hit); }
 .gutter span[data-state="over"] { color: var(--over); }
+
+/* Markdown.
+ *
+ * Both habits at once: Ulysses on the line you're writing — the marks
+ * there, dimmed to the same quiet as the chrome, so nothing shifts under
+ * the caret — and Obsidian everywhere else, where they step out of the
+ * way and the page reads as the poem rather than as its notation.
+ *
+ * The marks that go are the ones that decorate words, plus the hashes of
+ * a heading, which its size announces well enough on its own. The ones
+ * that stay are a line's own shape: a list stripped of its bullet reads
+ * as broken, not tidy. Either way the characters are only hidden, never
+ * removed — they are still in the file and still in anything you copy. */
+.md-mark, .md-hash, .md-prefix { color: var(--dim); }
+.md-strong { font-weight: 700; }
+.md-em     { font-style: italic; }
+.md-u      { text-decoration: underline; text-underline-offset: .2em; }
+
+.editor > :not(.open) .md-mark,
+.editor > :not(.open) .md-hash { display: none; }
+
+/* a word the thousand doesn't hold */
+.md-odd { color: var(--flag); }
+
+/* what the first line asked for: present, quiet, unexplained */
+.editor > .md-mode { color: var(--dim); }
+
+/* Headings scale up but have to land back on the same 2em line grid the
+   gutter numbers are pinned to. A line-height in em would resolve
+   against the heading's own larger font, so these are unitless ratios of
+   base ÷ heading size — 2 / 1.4, 2 / 1.2, 2 / 1.08. h4–h6 keep the body
+   size and separate themselves by weight alone. */
+.editor > .md-h1 { font-size: 1.4em;  line-height: 1.43; font-weight: 700; }
+.editor > .md-h2 { font-size: 1.2em;  line-height: 1.67; font-weight: 700; }
+.editor > .md-h3 { font-size: 1.08em; line-height: 1.85; font-weight: 700; }
+.editor > .md-h4,
+.editor > .md-h5,
+.editor > .md-h6 { font-weight: 700; }
+
+/* quoted lines step back in color rather than growing a left border —
+   a border would shift the text column and knock the poem out of line
+   with itself */
+.editor > .md-quote {
+  color: var(--ink); /* fallback where color-mix is unsupported */
+  color: color-mix(in srgb, var(--ink) 72%, var(--dim));
+}
+
+/* Fountain — /fountain on the first line, and the room is a screenplay.
+ *
+ * Every rule here keeps the base font size on purpose. The gutter is
+ * hidden in this mode, so the 2em line grid the headings above go to
+ * such trouble to land back on doesn't strictly matter — but a script
+ * is read as a column of even lines, and growing the sluglines would
+ * cost more than it bought. Shape comes from weight, indent and
+ * alignment instead.
+ *
+ * Nothing here uses text-transform. A cue is shouted because the writer
+ * shouted it, and the app's standing promise is that the file holds
+ * exactly what the page shows. */
+.editor > .ftn-scene   { font-weight: 700; }
+.editor > .ftn-section { font-weight: 700; }
+
+/* Sluglines and transitions the app worked out for itself are shouted
+   for you, so "int. kitchen" can be typed in whichever case is nearest
+   to hand. This is the one place the app shows something other than
+   what was typed — and it isn't only cosmetic: the export shouts the
+   same lines (ftnText), because a lowercase "cut to:" isn't a
+   transition to any other Fountain program. A forced heading or
+   transition keeps whatever case you gave it; forcing is the writer
+   overruling the app, and overruling that back would be a poor trade.
+   A forced cue — @maya — is the exception, and fountain.js says at
+   length what that buys and what it spends. */
+.editor > .ftn-caps { text-transform: uppercase; }
+
+/* dialogue steps in from the margin the way it does on the page, and
+   the cue steps in further. padding rather than margin, so the line
+   keeps its full width for the caret to sit in */
+.editor > .ftn-character { padding-left: 8em; }
+.editor > .ftn-paren     { padding-left: 6em; }
+.editor > .ftn-dialogue  { padding-left: 4em; padding-right: 4em; }
+
+.editor > .ftn-transition { text-align: right; }
+.editor > .ftn-centered   { text-align: center; }
+
+/* an aside is quieter than the script; a parenthetical is an aside the
+   actor still reads, so it stops short of the boneyard's dimness */
+.editor > .ftn-paren {
+  color: var(--ink); /* fallback where color-mix is unsupported */
+  color: color-mix(in srgb, var(--ink) 72%, var(--dim));
+}
+
+/* A dual speech sits alongside the one before it rather than under it.
+   Two real columns aren't available in a single flow of lines, so the
+   second speech is pushed right instead — enough to read as "at the same
+   time" without pretending to be a rendered page.
+
+   Set as a share of the column rather than in em, so the second speech
+   keeps a usable width to wrap into. Fixed indents deep enough to read
+   as "alongside" leave a two-character ribbon on a 38rem page. */
+.editor > .ftn-character.ftn-dual { padding-left: 55%; }
+.editor > .ftn-paren.ftn-dual     { padding-left: 52%; }
+.editor > .ftn-dialogue.ftn-dual  { padding-left: 48%; padding-right: 0; }
+
+/* The title page. Dim like the other scaffolding, because it is the
+   file's business rather than the script's. */
+.editor > .ftn-title { color: var(--dim); }
+
+/* The suggested rest of a character's name. Painted, never typed: this
+   is a pseudo-element, so it is not a child node, and nothing that reads
+   the line — getText(), currentRuns(), the caret — can see it at all.
+   It stays inert to the pointer too: a tap lands on the line div either
+   way, and app.js works out from the line's own geometry whether it
+   landed where this is drawn. */
+.editor > [data-ghost]::after {
+  content: attr(data-ghost);
+  color: var(--dim);
+  pointer-events: none;
+}
+
+.editor > .ftn-lyric    { font-style: italic; }
+.editor > .ftn-synopsis { color: var(--dim); font-style: italic; }
+
+/* the boneyard: kept in the file, struck from the script */
+.editor > .ftn-bone { color: var(--dim); text-decoration: line-through; }
+
+/* a note to yourself, dim from bracket to bracket */
+.md-note { color: var(--dim); }
 
 /* the 5·7·5·7·7 hint, shown only while the page is empty */
 .doc.empty::after {
@@ -212,6 +342,10 @@ body {
   pointer-events: none;
 }
 
+/* the ? is the only way into the card; let it sit a little plainer and
+   a little larger than the chrome it shares a bar with */
+#context { font-size: 1.1rem; opacity: .85; }
+
 .fs { font-size: 1.155rem; }
 
 /* the context card: same quiet room, one step removed */
@@ -239,6 +373,10 @@ body {
 
 /* a full blank line before each section header */
 .about .section { margin-top: 2em; }
+
+/* the card is already monospace; the marks it quotes just need to sit
+   apart from the prose around them */
+.about code { color: var(--hit); }
 
 .about .form {
   color: var(--hit);
@@ -289,6 +427,24 @@ body {
 @media (pointer: coarse) {
   .tools { gap: .4rem; }
   .tool { padding: .75rem .6rem; }
+
+  /* There is no Tab key here, so the suggestion has to look like something
+     a thumb can take: a faint chip of the color the page already uses
+     behind text. Every property is paint — horizontal padding on this
+     inline box would shove the ghost off the end of the word it continues
+     and could pull it onto the next row, where a spread shadow costs the
+     2em line grid nothing at all.
+
+     The letters lift a little off --dim, because a chip behind them takes
+     back exactly the contrast they had, and a suggestion you can't read
+     isn't one. Where color-mix is unsupported the declaration is dropped
+     and the rule above stands, which is the quiet version of the same. */
+  .editor > [data-ghost]::after {
+    color: color-mix(in srgb, var(--ink) 45%, var(--dim));
+    background: var(--sel);
+    box-shadow: 0 0 0 .15em var(--sel);
+    border-radius: .25em;
+  }
 }
 
 /* installed as an app there's no browser chrome to escape from —
