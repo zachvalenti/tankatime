@@ -41,7 +41,7 @@
  * wide, which is what `prefix` below counts.
  */
 const FTN_SCENE_F  = /^\.(?!\.)/;   // .INT SOMEWHERE — but ".." is ellipsis, left alone
-const FTN_CHAR_F   = /^@/;          // @McCLANE
+const FTN_CHAR_F   = /^@/;          // @maya — and the app shouts it for you
 const FTN_ACTION_F = /^!/;          // !INT. NOT A SCENE HEADING
 const FTN_LYRIC    = /^~/;          // ~Happy birthday to you
 const FTN_TRANS_F  = /^>/;          // > BURN TO PINK.
@@ -143,9 +143,20 @@ function kind(cls, prefix) { return { cls, prefix: prefix || 0 }; }
  *
  * It rides along as a second class on the line, so style.css can
  * uppercase the display and the export can ask the same question of the
- * same function. Only lines the app worked out for itself get it: a
- * forced heading or transition is a writer overruling the app, and
- * overruling it only to be overruled back would be a poor trade.
+ * same function. A forced heading or transition doesn't get it: forcing
+ * is a writer overruling the app, and overruling it only to be overruled
+ * back would be a poor trade.
+ *
+ * A forced *cue* is the one exception, and it is deliberate. A cue is
+ * capitals in every screenplay ever printed, '@' is the shortest way to
+ * say "this is a person speaking", and it is one character where the
+ * alternative is holding a shift key down through a whole name — which
+ * on a phone means a caps-lock hunt on a keyboard that puts it two
+ * layers deep. So @maya is a cue, and it is MAYA. The cost is real and
+ * worth naming: Fountain's own use for '@' is the name that can't shout,
+ * McCLANE, and this spends it outright. There is now no cue in mixed
+ * case here — an unforced one has to shout to be read as a cue at all,
+ * and a forced one gets shouted. MCCLANE is what this editor writes.
  */
 const FTN_CAPS = 'ftn-caps';
 function shouted(cls) { return cls + ' ' + FTN_CAPS; }
@@ -237,7 +248,9 @@ function ftnKinds(src, start) {
     //    Centered is asked before transition: both open with '>', and
     //    only the closing '<' tells them apart.
     if (FTN_ACTION_F.test(text)) { out.push(kind('ftn-action', 1)); continue; }
-    if (FTN_CHAR_F.test(text))   { out.push(kind(cue(), 1)); continue; }
+    // the forced cue is the one forced mark the app shouts for you; see
+    // the note on FTN_CAPS for what that spends and why
+    if (FTN_CHAR_F.test(text))   { out.push(kind(shouted(cue()), 1)); continue; }
     if (FTN_SCENE_F.test(text))  { out.push(kind('ftn-scene', 1)); continue; }
     if (FTN_CENTERED.test(text)) { out.push(kind('ftn-centered', 1)); continue; }
     if (FTN_TRANS_F.test(text))  { out.push(kind('ftn-transition', 1)); continue; }
@@ -424,10 +437,13 @@ function ftnNames(src, start, kinds) {
   const out = [];
   for (let i = 0; i < src.length; i++) {
     if (!isKind(ks[i], 'ftn-character')) continue;
-    const name = cueName(src[i]);
-    const key = name.toUpperCase();
-    if (!name || seen.has(key)) continue;
-    seen.add(key);
+    // the name as the page spells it, which is capitals either way now:
+    // an unforced cue had to shout to be one, and a forced cue is shouted
+    // for you. Offering @maya's name back as "maya" would complete a line
+    // that isn't a cue — the same trap the tail-append used to set.
+    const name = cueName(src[i]).toUpperCase();
+    if (!name || seen.has(name)) continue;
+    seen.add(name);
     out.push(name);
   }
   return out;

@@ -463,9 +463,10 @@ function setGhost(rows, src, modes, kinds) {
  * and it disposes of a trailing space, which appending couldn't ("ma " + a
  * tail is two words, and neither of them is anybody's name).
  *
- * The name goes in exactly as the document spells it, not uppercased. A
- * script that forced @Maya meant it; overruling a forcing mark is the one
- * thing this app doesn't do to a writer's own capitals.
+ * The name goes in exactly as ftnNames() spells it, which is capitals —
+ * every cue in this editor shouts, the forced ones because the app puts
+ * the capitals on. So this doesn't have to know the rule, only to trust
+ * the list.
  */
 function takeGhost() {
   if (!ghostLine || !ghostName || composing) return;

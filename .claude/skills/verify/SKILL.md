@@ -108,8 +108,14 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
   - **Caps**: type `int. kitchen - night` and `cut to:` in lower case. Both
     must be recognised, both must compute to `text-transform: uppercase`,
     the *draft* must keep your casing, and the exported file must not —
-    check the download body, not just the filename. Forced (`.`/`>`/`@`)
-    lines keep whatever case you gave them.
+    check the download body, not just the filename. Forced `.` and `>`
+    lines keep whatever case you gave them; a forced cue (`@maya`) does
+    **not** — it wears `ftn-caps` like any other cue, so it shouts on the
+    page and in the file, and `ftnNames()` hands its name back in capitals
+    so completing it writes a line that is a cue on its own. That is the
+    one place forcing is overruled, and the trade (no mixed-case cue —
+    `@McCLANE` exports `@MCCLANE`) is deliberate; see the FTN_CAPS note in
+    `fountain.js`.
   - ⌘U writes `_x_` here and `__x__` in poem mode; ⌘K shouts the word under
     the caret and toggles back; ⌘\ wraps a line in `> <` and is inert
     outside a script; ⌘D puts the `^` on the *second* cue in the selection

@@ -187,9 +187,11 @@ body {
    to hand. This is the one place the app shows something other than
    what was typed — and it isn't only cosmetic: the export shouts the
    same lines (ftnText), because a lowercase "cut to:" isn't a
-   transition to any other Fountain program. A forced heading keeps
-   whatever case you gave it; forcing is the writer overruling the app,
-   and overruling that back would be a poor trade. */
+   transition to any other Fountain program. A forced heading or
+   transition keeps whatever case you gave it; forcing is the writer
+   overruling the app, and overruling that back would be a poor trade.
+   A forced cue — @maya — is the exception, and fountain.js says at
+   length what that buys and what it spends. */
 .editor > .ftn-caps { text-transform: uppercase; }
 
 /* dialogue steps in from the margin the way it does on the page, and

@@ -23,7 +23,12 @@ A quiet room for tanka. WriteRoom inspired full-screen writing with a syllable c
   dim type: press Tab to take it, or tap it — a phone keyboard has no Tab
   key, so on a touch screen the suggestion wears a chip and is the target.
   Taking a name writes the name, so a lowercase start still lands a cue,
-  which have to shout to be cues at all.
+  which have to shout to be cues at all. `@` in front of a line makes it a
+  cue whatever it looks like, and the app shouts that one for you — `@maya`
+  is MAYA on the page and in the file, which is the short way to name a
+  speaker without hunting for caps lock. The draft keeps your typing. The
+  price is that there is no mixed-case cue here: `@McCLANE` exports as
+  `@MCCLANE`.
 - Undo is the app's own, because highlighting as you type rewrites the very
   nodes a browser's undo remembers. A run of typing is one step, ended when
   the typing becomes deleting, when the caret moves elsewhere, when a word
