@@ -127,6 +127,18 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
     takes a suggestion (see above) and is otherwise left alone.
   - `localStorage['tanka-time-total']` is *unchanged* by the mode — the
     face is borrowed, not overwritten.
+- **The bar and the soft keyboard** (`barLift()`, `placeBar()`, `barAside()` in
+  `app.js`). A phone keyboard shrinks the visual viewport and leaves the layout
+  viewport alone, so `position: fixed; bottom: 0` lands behind it and iOS drags
+  the bar about as you scroll. Headless Chromium reproduces none of that —
+  what *is* testable here is the arithmetic (`barLift(844, 400, 100) === 344`;
+  anything under `KEY_MIN` is `0`), that the whole mechanism stays inert with
+  no keyboard (`bar.style.transform === ''`, no `lifted`/`away`), and the
+  stepping-aside wiring: `lifted` is the state, so add it by hand, dispatch a
+  `scroll`, and the bar takes `away` and settles back after `SETTLE_MS`. The
+  fade must be opacity only — the transform is busy holding the lift, and two
+  rules on one property is where a stutter comes from. Everything else about
+  this needs a real phone.
 - Export picks its extension from the page: `.fountain` for a script,
   `.md` for a page that used a mark, `.txt` for one that didn't
   (`mdUsed()` in `markdown.js`). Worth asserting all three.
