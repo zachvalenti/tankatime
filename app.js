@@ -414,9 +414,20 @@ function tidyFades() {
  * putting real text on the line would have had to solve.
  */
 let ghostLine = null;
+// the whole matched name, not only the dim part of it. A variable rather
+// than a second data-* attribute: data-ghost is already in the editor's
+// markup, and every attribute that goes in there is one more thing a
+// repeated refresh() has to reproduce exactly.
+let ghostName = '';
+
+function clearGhost() {
+  if (ghostLine) ghostLine.removeAttribute('data-ghost');
+  ghostLine = null;
+  ghostName = '';
+}
 
 function setGhost(rows, src, modes, kinds) {
-  if (ghostLine) { ghostLine.removeAttribute('data-ghost'); ghostLine = null; }
+  clearGhost();
   if (!modes.fountain || !openLine) return;
 
   const i = rows.indexOf(openLine);
@@ -436,14 +447,97 @@ function setGhost(rows, src, modes, kinds) {
   if (hits.length !== 1) return;
 
   ghostLine = openLine;
+  ghostName = hits[0];
   openLine.dataset.ghost = hits[0].slice(t.length);
+}
+
+/* Taking the name.
+ *
+ * The line is rewritten whole rather than having the dim tail appended to
+ * it, and that isn't tidiness — it is the difference between a cue and a
+ * line of action. A cue is a cue because it shouts (isShout), the editor
+ * turns autocapitalize off, and the match above is deliberately case-blind,
+ * so a writer typing "ma" on a phone was being handed "maYA": the right
+ * letters in a case Fountain cannot read. Writing the matched name in full
+ * puts the capitals back where the rest of the script already keeps them —
+ * and it disposes of a trailing space, which appending couldn't ("ma " + a
+ * tail is two words, and neither of them is anybody's name).
+ *
+ * The name goes in exactly as the document spells it, not uppercased. A
+ * script that forced @Maya meant it; overruling a forcing mark is the one
+ * thing this app doesn't do to a writer's own capitals.
+ */
+function takeGhost() {
+  if (!ghostLine || !ghostName || composing) return;
+  const line = ghostLine, name = ghostName;
+  const src = plain(line.textContent);
+  const t = src.trim();
+  // the ghost can be a beat out of date — a selection dragged about inside
+  // one line never re-runs setGhost() — so ask the line again
+  if (!t || t.length >= name.length ||
+      !name.toUpperCase().startsWith(t.toUpperCase())) return;
+
+  // collapse first: editLines() reads the selection to find its lines, and
+  // a selection whose far end is on another line would hand the name to
+  // every line in between
+  placeCaret(line, src.length);
+  const text = src.match(/^[ \t]*/)[0] + name;
+  editLines(() => ({ text, s: text.length, e: text.length }));
+}
+
+/* Where the suggestion is painted, in viewport coordinates.
+ *
+ * A pseudo-element has no node to hit-test, so the region is worked out
+ * from the line instead: the last of the rects the line's own text covers
+ * gives the point the writing stops at and the row it stopped on, and the
+ * ghost is drawn from there rightwards.
+ *
+ * The whole of that trailing run counts, not just the two or three glyphs
+ * of the tail — a suggestion is narrower than a fingertip, and this is the
+ * gesture a fingertip has. Nothing is taken away by claiming it: a name is
+ * only ever offered while the caret is already at the end of that line, so
+ * a tap out there was putting the caret where it already was.
+ *
+ * The rect a Range hands back is the height of the glyphs rather than of
+ * the row they sit in, so it is grown back out to the row — a thumb landing
+ * in the leading above the letters is still aiming at them. The one place
+ * this misses is a ghost long enough to wrap onto the next line; Tab still
+ * reaches it, and a character name that long is its own problem.
+ */
+function inGhostRegion(x, y) {
+  if (!ghostLine) return false;
+  const r = document.createRange();
+  r.selectNodeContents(ghostLine);
+  const rects = [...r.getClientRects()];
+  if (!rects.length) return false;
+  // decoration cuts a line into spans, so one row is several rects: the end
+  // of the text is the lowest of them, and the rightmost of those
+  const end = rects.reduce((a, b) =>
+    b.bottom > a.bottom || (b.bottom === a.bottom && b.right > a.right) ? b : a);
+  const box = ghostLine.getBoundingClientRect();
+  const row = parseFloat(getComputedStyle(ghostLine).lineHeight) || end.height;
+  const mid = (end.top + end.bottom) / 2;
+  return x >= end.right && x <= box.right &&
+         y >= mid - row / 2 && y <= mid + row / 2;
 }
 
 // the caret moved on its own — no edit, so nothing needs repainting
 // beyond which line wears the class
 function openCaretLine() {
   const row = caretLine();
-  if (row === openLine) return;
+  if (row === openLine) {
+    /* The caret can move about inside a line without changing which line
+     * is open, and this is where that arrives — an arrow key, a tap into
+     * the middle of a word, a selection dragged across it. Nothing needs
+     * repainting for any of those, but a suggestion is only true while the
+     * caret is at the end of the text it completes, so a stale one is
+     * taken down here. Reading one offset is cheap; a full readDoc() on
+     * every caret move inside a line would not be.
+     */
+    if (ghostLine && caretOffset(ghostLine) !== plain(ghostLine.textContent).length)
+      clearGhost();
+    return;
+  }
   openLine?.classList.remove('open');
   row?.classList.add('open');
   openLine = row;
@@ -851,9 +945,8 @@ editor.addEventListener('keydown', e => {
   // Tab takes the suggested name, and only when one is showing —
   // otherwise Tab is left doing whatever it did before
   if (e.key === 'Tab' && !e.metaKey && !e.ctrlKey && !e.altKey && ghostLine) {
-    const rest = ghostLine.dataset.ghost;
     e.preventDefault();
-    editLines(t => ({ text: t + rest, s: t.length + rest.length, e: t.length + rest.length }));
+    takeGhost();
     return;
   }
 
@@ -867,6 +960,39 @@ editor.addEventListener('keydown', e => {
   // way ⌘K takes back the address bar
   if (key === 'd' && fountain) { e.preventDefault(); editDoc(ftnDual); }
 });
+
+/* Tapping the name, because a phone keyboard has no Tab key.
+ *
+ * Two listeners rather than one, and each is the event that carries the
+ * default we need to refuse. On a desktop the caret is placed from
+ * mousedown — the same event the toolbar buttons cancel to keep the caret
+ * where it was — and a mouse's mousedown is the real event rather than a
+ * replay of the pointer one, so cancelling pointerdown wouldn't stop it.
+ * On a phone it is touchstart that decides focus, caret and scroll, and
+ * cancelling that also suppresses the mouse events the tap would otherwise
+ * be replayed as — so one finger reaches exactly one of these handlers and
+ * neither needs to know about the other.
+ *
+ * preventDefault is the whole exercise. Focus never leaves the editor, so
+ * the keyboard never drops and the writer never loses the line they were in
+ * the middle of. The price is that a scroll begun inside the region won't
+ * take: a band one line tall, at the end of the line the caret is already
+ * in, and only while a name is being offered.
+ */
+editor.addEventListener('mousedown', e => {
+  if (!ghostLine || e.button || !inGhostRegion(e.clientX, e.clientY)) return;
+  e.preventDefault();
+  takeGhost();
+});
+
+editor.addEventListener('touchstart', e => {
+  if (!ghostLine || e.touches.length !== 1) return;
+  const touch = e.touches[0];
+  if (!inGhostRegion(touch.clientX, touch.clientY)) return;
+  e.preventDefault();
+  buzz(10); // the same tick every other press in the app answers with
+  takeGhost();
+}, { passive: false });
 
 /* ⌘D is the one shortcut that isn't about a line.
  *

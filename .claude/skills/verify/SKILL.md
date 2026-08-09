@@ -84,7 +84,23 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
     `getText()` never contains it and that repeated `refresh()` doesn't
     change `editor.innerHTML` — real text on the line would fail both.
     Ambiguous prefixes must show nothing; a name must stop being offered
-    once its last cue is deleted.
+    once its last cue is deleted; and a caret that moves *inside* the line
+    (arrow key, a tap into the word) must take the suggestion down —
+    `openCaretLine()` returns early for the same row, so that clearing is
+    its own branch and easy to lose.
+  - **A suggestion is taken by Tab or by a tap**, and both go through
+    `takeGhost()`, which rewrites the line *whole*: a cue only reads as one
+    if it shouts (`isShout`), the match is case-blind, and appending the
+    tail to a lowercase prefix produced `maYA` — right letters, wrong case,
+    not a cue. Drive it in lower case, and check `getText()`, not the class.
+    The tap region is geometric (`inGhostRegion()`) because a pseudo-element
+    cannot be hit-tested: rebuild it in-page from the line's
+    `Range.getClientRects()` to find a point. Test it in a touch context
+    (`hasTouch`, `isMobile`) *and* with `page.mouse.click` — the handlers
+    are `touchstart` and `mousedown` separately, and each cancels the
+    default the other doesn't. Assert focus never leaves the editor
+    (a dropped soft keyboard is the whole failure being avoided) and that
+    the coarse-pointer chip leaves every line's `offsetTop` untouched.
   - **Dual dialogue layout needs a width assertion, not just a class one.**
     "Indented further right" passes happily while the speech has collapsed
     to one character per line. Compare usable width against the plain
@@ -98,7 +114,7 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
     the caret and toggles back; ⌘\ wraps a line in `> <` and is inert
     outside a script; ⌘D puts the `^` on the *second* cue in the selection
     (`ftnDual()`, the one shortcut that reads the whole document); Tab
-    takes a suggestion and is otherwise left alone.
+    takes a suggestion (see above) and is otherwise left alone.
   - `localStorage['tanka-time-total']` is *unchanged* by the mode — the
     face is borrowed, not overwritten.
 - Export picks its extension from the page: `.fountain` for a script,

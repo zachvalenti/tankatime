@@ -18,6 +18,12 @@ A quiet room for tanka. WriteRoom inspired full-screen writing with a syllable c
   `*italic*`, `__underline__`, `> quotes`, `- lists`; ⌘/Ctrl+B, I and U
   toggle the marks on a selection, on the word under the cursor, or on
   nothing at all.
+- `/fountain` on the first line turns the room into a screenplay. Once a
+  character has spoken, starting their name again offers the rest of it in
+  dim type: press Tab to take it, or tap it — a phone keyboard has no Tab
+  key, so on a touch screen the suggestion wears a chip and is the target.
+  Taking a name writes the name, so a lowercase start still lands a cue,
+  which have to shout to be cues at all.
 - Undo is the app's own, because highlighting as you type rewrites the very
   nodes a browser's undo remembers. A run of typing is one step, ended when
   the typing becomes deleting, when the caret moves elsewhere, when a word
