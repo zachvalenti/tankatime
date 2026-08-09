@@ -93,6 +93,10 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
     if it shouts (`isShout`), the match is case-blind, and appending the
     tail to a lowercase prefix produced `maYA` — right letters, wrong case,
     not a cue. Drive it in lower case, and check `getText()`, not the class.
+    A leading `@` is matched *past* — `@ma` is offered the same name `MA` is,
+    and taking it writes `@MAYA`, mark kept (forcing is asked before the
+    shout rule, so dropping it would change what the line is). A lone `@`
+    must offer nothing.
     The tap region is geometric (`inGhostRegion()`) because a pseudo-element
     cannot be hit-tested: rebuild it in-page from the line's
     `Range.getClientRects()` to find a point. Test it in a touch context

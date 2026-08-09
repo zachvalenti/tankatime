@@ -440,15 +440,31 @@ function setGhost(rows, src, modes, kinds) {
   // text the writer has already moved past
   if (caretOffset(openLine) !== src[i].length) return;
 
-  const up = t.toUpperCase();
+  /* '@' forces a line to be a cue, and it is a mark rather than a letter
+   * of anybody's name — no name has one in it. So it is set aside for the
+   * comparison and put back on what gets written, and typing @ma is
+   * offered the same MAYA that typing MA is. It stays on the line, too:
+   * forcing is asked before the shout rule, so an '@' line is a cue even
+   * with nothing written under it yet, which is exactly where the caret
+   * is at the end of a draft. Dropping the mark on the way in would
+   * change what the line is out from under the writer.
+   *
+   * A lone '@' has named nobody yet, and is passed over for the same
+   * reason an empty line is.
+   */
+  const at = t.startsWith('@') ? '@' : '';
+  const typed = t.slice(at.length);
+  if (!typed) return;
+
+  const up = typed.toUpperCase();
   const hits = ftnNames(src, modes.lines, kinds)
-    .filter(n => n.length > t.length && n.toUpperCase().startsWith(up));
+    .filter(n => n.length > typed.length && n.toUpperCase().startsWith(up));
   // two candidates and a ghost would be a lie about what Tab will do
   if (hits.length !== 1) return;
 
   ghostLine = openLine;
-  ghostName = hits[0];
-  openLine.dataset.ghost = hits[0].slice(t.length);
+  ghostName = at + hits[0];
+  openLine.dataset.ghost = hits[0].slice(typed.length);
 }
 
 /* Taking the name.
