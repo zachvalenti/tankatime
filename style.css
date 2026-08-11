@@ -98,6 +98,12 @@ body {
   transition: background-color .25s ease, color .25s ease;
 }
 
+/* Held still for the one frame a theme changes on — see applyTheme().
+   Half the room can ease its colours and half of it cannot, and a
+   gradient is in the half that cannot, so nothing eases and the palette
+   lands whole. */
+html.swapping, html.swapping * { transition: none !important; }
+
 ::selection { background: var(--sel); }
 
 .page {

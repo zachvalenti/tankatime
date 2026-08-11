@@ -1386,11 +1386,33 @@ clearBtn.addEventListener('blur', cancelHold);
 
 // themes are sets of CSS custom properties keyed off data-theme on
 // <html> (see style.css); the meta tag recolors the browser chrome
+/* A theme change is one moment, not a quarter of a second with two
+ * palettes in the room at once.
+ *
+ * The page eases its background and its ink, which is lovely on its own
+ * and was lovely when the background was the only thing there. The faded
+ * edges are gradients built from --bg, and a gradient cannot be
+ * interpolated: it snaps to the new colour on the frame it changes,
+ * while the body behind it is still a quarter second from arriving. What
+ * you see is a band of the new theme at the top and foot of a page still
+ * wearing the old one — a flash at the edges of the frame.
+ *
+ * So the swap is made atomic: every transition in the room is frozen for
+ * the frame the palette changes on, and let go again once it has. The
+ * easing is still there for what it was for — a count changing colour as
+ * a line lands, a button lighting under the pointer — and the theme
+ * simply arrives all at once, the way it looks like it should.
+ */
 function applyTheme(name) {
-  if (name === 'room') delete document.documentElement.dataset.theme;
-  else document.documentElement.dataset.theme = name;
+  const root = document.documentElement;
+  root.classList.add('swapping');
+  if (name === 'room') delete root.dataset.theme;
+  else root.dataset.theme = name;
   document.querySelector('meta[name="theme-color"]').content = THEMES[name];
   try { localStorage.setItem(THEME_KEY, name); } catch (_) {}
+  // two frames: one for the new palette to paint, one to be sure it has
+  requestAnimationFrame(() => requestAnimationFrame(() =>
+    root.classList.remove('swapping')));
 }
 
 themeBtn.addEventListener('click', () => {
