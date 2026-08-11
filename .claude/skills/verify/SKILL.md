@@ -143,20 +143,27 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
   `bottom` untouched. The accepted cost is that the toolbar and the running
   total are behind the keyboard while you type, with no way to dismiss it.
 
-- **The faded edges** (`.edges`, painted only under `@media (pointer: coarse)`).
-  The real complaint underneath the keyboard saga was text sharing pixels with
-  the phone's clock and with the toolbar, and that is answered in paint: one
-  fixed, inert layer carrying two `--bg` gradients, solid as far as the chrome
+- **The faded edges** (`.edges`). The complaint underneath the whole keyboard
+  saga was writing sharing pixels with chrome, and it is answered in paint: a
+  fixed, inert layer carrying a `--bg` gradient, solid as far as the chrome
   reaches and fading over as much again.
+
+  Two bands, and they are scoped differently on purpose. **The foot fades
+  everywhere** — the bar is on every device — and lives on `.edges` itself.
+  **The top fades only under `@media (pointer: coarse)`**, as `.edges::before`,
+  because only a phone puts a clock up there. Written that way round so the
+  gradient every device wants isn't duplicated inside a media query.
 
   Its **place in `index.html` is its layering** — after `</main>`, before the
   flood canvas and the bar. Nothing in the sheet sets a `z-index`, so paint
   order is DOM order, and `.doc` is `position: relative`; put this any earlier
   (a `body::before`, say) and the writing paints straight over it, which looks
-  exactly like the rule not working. Assert two gradients on a coarse pointer,
-  `none` on a fine one, `pointer-events: none`, and that toggling it moves no
-  line's `offsetTop`. Chromium reports every `env(safe-area-inset-*)` as `0`,
-  so for a picture worth judging, inject a notch-sized inset first.
+  exactly like the rule not working. Assert the foot gradient in both contexts,
+  the top one only on coarse (`getComputedStyle(el, '::before').content` is
+  `none` on a fine pointer), `pointer-events: none`, and that toggling the
+  layer moves no line's `offsetTop`. Chromium reports every
+  `env(safe-area-inset-*)` as `0`, so for a picture worth judging, inject a
+  notch-sized inset first.
 
 - Export picks its extension from the page: `.fountain` for a script,
   `.md` for a page that used a mark, `.txt` for one that didn't
