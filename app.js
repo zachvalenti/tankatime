@@ -27,6 +27,7 @@ const exportBtn = document.getElementById('export');
 const themeBtn  = document.getElementById('theme');
 const clearBtn  = document.getElementById('clear');
 const flood     = document.getElementById('flood');
+const edges     = document.getElementById('edges');
 
 // the tanka form: five lines of 5-7-5-7-7 syllables
 const TARGETS = [5, 7, 5, 7, 7];
@@ -1453,6 +1454,60 @@ addEventListener('resize', () => {
   clearTimeout(resizeTimer);
   resizeTimer = setTimeout(refresh, 100);
 });
+/* ---------- the fade, and what the keyboard does to the view ---------- */
+
+/* The one place this app looks at the keyboard, and it moves paint only.
+ *
+ * Giving the document no scroll stopped the toolbar wandering, but it
+ * could not stop this: with a keyboard up, iOS slides the *visual*
+ * viewport — the part you can actually see — around inside the layout
+ * viewport to keep the caret above the keys. Everything laid out against
+ * the layout viewport slides with it, the faded edges included, and the
+ * top band ends up above the screen with the writing running clear under
+ * the clock and the battery.
+ *
+ * There is no CSS for "the part you can see". So the fade is told, and
+ * only the fade: where the visible box starts, and how tall it is. The
+ * toolbar is deliberately left alone — iOS lifts it above the keyboard
+ * by itself, which is the behaviour we want, and two earlier attempts to
+ * improve on that both made it worse.
+ *
+ * This is the third pass at keyboard-aware code and the first that
+ * should hold, because the ground is different now: the document cannot
+ * scroll, so these events fire when the keyboard opens or the caret
+ * moves, not continuously under a finger. Nothing here can move a
+ * control or shift the writing — at worst a gradient arrives a frame
+ * late, which is a great deal cheaper than a toolbar that jumps.
+ */
+/* → where the fade should sit, or null when the visible box and the
+ * layout box are the same thing and the stylesheet already has it right.
+ *
+ * Numbers in, a box out, no DOM — the part of this that can be checked
+ * without a phone in your hand.
+ */
+function edgeBox(offsetTop, viewH, layoutH) {
+  const top = Math.max(0, Math.round(offsetTop));
+  const height = Math.round(viewH);
+  return top === 0 && height === Math.round(layoutH) ? null : { top, height };
+}
+
+const view = window.visualViewport;
+
+function placeEdges() {
+  if (!view) return;
+  const box = edgeBox(view.offsetTop, view.height, innerHeight);
+  // the ordinary case leaves the element exactly as the stylesheet left
+  // it, rather than pinning it with inline values that say the same thing
+  edges.style.transform = box && box.top ? `translate3d(0,${box.top}px,0)` : '';
+  edges.style.height = box ? box.height + 'px' : '';
+}
+
+if (view) {
+  view.addEventListener('resize', placeEdges);
+  view.addEventListener('scroll', placeEdges);
+  placeEdges();
+}
+
 // mobile browsers discard tabs without warning — save on every hide
 addEventListener('pagehide', save);
 document.addEventListener('visibilitychange', () => { if (document.hidden) save(); });

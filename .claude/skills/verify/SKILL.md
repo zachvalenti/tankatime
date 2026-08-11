@@ -164,6 +164,23 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
   `window.scrollTo` is inert now: test fixtures and screenshot scripts must
   set `room.scrollTop` instead.
 
+- **One thing does watch the keyboard: the fade** (`edgeBox()`, `placeEdges()`).
+  Giving the document no scroll stopped the *toolbar* wandering but could not
+  stop iOS sliding the visible box inside the layout box to hold the caret
+  above the keys — which put the writing under the clock. There is no CSS for
+  "the part you can see", so `.edges` is told: `visualViewport.offsetTop` and
+  `.height`, applied as a transform and a height.
+
+  **Only the fade.** The toolbar is deliberately left to iOS, which lifts it
+  above the keyboard by itself; two attempts to improve on that both made it
+  worse. Nothing here may move a control or shift the writing — the worst
+  failure allowed is a gradient arriving a frame late.
+
+  Testable: `edgeBox(0, 844, 844)` is `null` (nothing to correct, so no inline
+  geometry at rest — assert the element's `style.transform` and `style.height`
+  are both empty), `edgeBox(0, 400, 844)` shortens it, `edgeBox(120, 400, 844)`
+  moves it down by exactly the offset, and sub-pixel noise still yields `null`.
+
 - **The bar ignores the soft keyboard, on purpose.** A phone keyboard shrinks
   the visual viewport and leaves the layout viewport alone, so
   `position: fixed; bottom: 0` sits behind it. Two fixes were tried on a real
