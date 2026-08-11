@@ -19,6 +19,12 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
+<!-- The room scrolls; the document does not. That is the whole reason
+     this element exists, and style.css says at length why: on a phone,
+     'position: fixed' is fixed to a viewport the keyboard makes the
+     browser slide around, so anything pinned to an edge goes wandering
+     the moment the page itself can scroll. Nothing here can. -->
+<div class="room" id="room">
 <main class="page" id="page">
   <div class="doc" id="doc">
     <!-- the margin numbers; aria-hidden keeps screen readers on the poem -->
@@ -30,6 +36,7 @@
          role="textbox" aria-multiline="true" aria-label="Write"></div>
   </div>
 </main>
+</div>
 <!-- The two edges the phone and the toolbar have claimed, faded out in
      style.css. It sits here and not inside .page because the layering is
      the DOM order: after the writing, so it covers it; before the water

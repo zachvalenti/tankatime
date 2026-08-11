@@ -149,6 +149,21 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
     The dual-dialogue trap: two speeches side by side cost the *taller* of
     them, at 0.75 width — counting both stacked overstates by a full page per
     dual-heavy page, which is what the first draft did.
+- **The document does not scroll; `.room` does.** This is load-bearing and easy
+  to undo by accident. A phone's keyboard shrinks the *visual* viewport and
+  leaves the layout viewport alone, then slides the visual one about to keep
+  the caret in view — so anything `position: fixed` travels with it. The bar
+  wandered for that reason, and once the faded edges were added they wandered
+  too. Pinning harder never works; the frame itself has to hold still, so
+  `html, body { overflow: hidden }` and the writing scrolls inside `.room`.
+
+  Assert all four: the document cannot scroll (`scrollY === 0`, `scrollHeight`
+  no greater than `clientHeight`), `.room` can, scrolling `.room` leaves
+  `.edges` and `.bar` bounding rects **unchanged**, and the writing underneath
+  them did move — otherwise the third assertion proves nothing. Note that
+  `window.scrollTo` is inert now: test fixtures and screenshot scripts must
+  set `room.scrollTop` instead.
+
 - **The bar ignores the soft keyboard, on purpose.** A phone keyboard shrinks
   the visual viewport and leaves the layout viewport alone, so
   `position: fixed; bottom: 0` sits behind it. Two fixes were tried on a real
