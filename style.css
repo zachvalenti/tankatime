@@ -20,6 +20,18 @@
   --tide: #58a6c8;   /* the clear-hold water */
   --sel:  rgba(74, 222, 128, .25);
   --fs:   clamp(17px, 2.4vw, 21px); /* fluid type with a floor and ceiling */
+  /* How far the toolbar stands off the bottom of the screen, and where
+     the fade behind it starts from — one value, because the two have to
+     agree or the bar floats in the middle of its own gradient.
+
+     Half the safe-area inset, not all of it. The whole inset is the
+     conservative reading of "keep clear of the home indicator", and on a
+     phone it left the count sitting fifty-odd pixels up with nothing
+     underneath it, which looks less like margin than like a mistake.
+     Half still clears the indicator and its gesture, and the bar reads
+     as belonging to the bottom edge again. Zero on anything without an
+     inset, where it comes out at the .5rem. */
+  --foot: calc(.5rem + env(safe-area-inset-bottom) * .5);
   color-scheme: dark; /* tells the browser to render UA widgets dark */
 }
 
@@ -317,9 +329,12 @@ html.swapping, html.swapping * { transition: none !important; }
   position: fixed;
   inset: 0;
   pointer-events: none;
+  /* solid as far as the bar itself reaches, then fading over as much
+     again — measured from --foot, so the band moves with the bar rather
+     than leaving it adrift in the middle of a gradient */
   background: linear-gradient(to top,
-      var(--bg) calc(env(safe-area-inset-bottom) + 2.6rem), transparent)
-    bottom / 100% calc(env(safe-area-inset-bottom) + 5.2rem) no-repeat;
+      var(--bg) calc(var(--foot) + 1.9rem), transparent)
+    bottom / 100% calc(var(--foot) + 3.4rem) no-repeat;
 }
 
 /* the bottom toolbar spans the viewport; env(safe-area-inset-*) pads
@@ -331,7 +346,7 @@ html.swapping, html.swapping * { transition: none !important; }
   justify-content: space-between;
   align-items: center;
   padding: .5rem calc(.8rem + env(safe-area-inset-right))
-           calc(.5rem + env(safe-area-inset-bottom))
+           var(--foot)
            calc(.9rem + env(safe-area-inset-left));
   /* the bar itself ignores clicks so the page stays writable beneath
      it; the .tools groups opt back in */
