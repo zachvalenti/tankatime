@@ -258,6 +258,16 @@ body {
   pointer-events: none;
 }
 
+/* The screen's top and bottom edges, where the phone's own chrome lives.
+   Empty and invisible until a touch screen asks for it — the media query
+   further down paints the fades in. Fixed and inert either way, so it
+   costs the writing nothing and can never take a tap. */
+.edges {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+
 /* the bottom toolbar spans the viewport; env(safe-area-inset-*) pads
    past notches and home-bar indicators on phones */
 .bar {
@@ -275,20 +285,6 @@ body {
   font-size: .8rem;
   color: var(--dim);
   letter-spacing: .05em;
-  transition: opacity .18s ease, transform .18s ease, visibility .18s;
-}
-
-/* Down: a phone keyboard is up, and the bar has left rather than trying
-   to find somewhere to stand (app.js says why at length).
-
-   It goes straight down and out, under the keyboard that displaced it.
-   visibility rides the same transition so it lands hidden from the
-   pointer and from a screen reader both, rather than staying an invisible
-   row of buttons across the foot of the page. */
-.bar.down {
-  opacity: 0;
-  visibility: hidden;
-  transform: translateY(100%);
 }
 
 .tools {
@@ -441,6 +437,39 @@ body {
 @media (pointer: coarse) {
   .tools { gap: .4rem; }
   .tool { padding: .75rem .6rem; }
+
+  /* The two edges that aren't ours.
+   *
+   * A phone puts its clock and battery across the top of the screen and
+   * this app puts its own count and buttons across the foot, and the
+   * writing runs the full height between them — so scroll far enough and
+   * a line of the poem is sharing pixels with the time.
+   *
+   * The room could reserve space instead, but a soft keyboard resizes
+   * what "the foot of the screen" means the moment it opens, and two
+   * goes at chasing that taught the lesson: anything that measures the
+   * keyboard ends up moving when the writer least wants it to. This
+   * doesn't measure anything. The page simply stops being legible at its
+   * edges, fading into its own background, and the keyboard is welcome to
+   * cover whatever it likes.
+   *
+   * One layer, two gradients, fixed and inert. Its place in index.html —
+   * after the writing, before the water and the bar — is the whole of its
+   * layering: nothing here sets a z-index, so paint order is DOM order,
+   * and this has to come after .doc to cover it. */
+  .edges {
+    /* each band is solid for as far as the chrome really reaches — the
+       safe-area inset at the top, the bar's own height at the foot — and
+       fades over as much again, so a line dims out rather than ending at
+       a ruled edge */
+    background:
+      linear-gradient(to bottom,
+        var(--bg) calc(env(safe-area-inset-top) + 1rem), transparent)
+        top / 100% calc(env(safe-area-inset-top) + 3.4rem) no-repeat,
+      linear-gradient(to top,
+        var(--bg) calc(env(safe-area-inset-bottom) + 2.6rem), transparent)
+        bottom / 100% calc(env(safe-area-inset-bottom) + 5.2rem) no-repeat;
+  }
 
   /* There is no Tab key here, so the suggestion has to look like something
      a thumb can take: a faint chip of the color the page already uses

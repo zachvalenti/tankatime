@@ -27,7 +27,6 @@ const exportBtn = document.getElementById('export');
 const themeBtn  = document.getElementById('theme');
 const clearBtn  = document.getElementById('clear');
 const flood     = document.getElementById('flood');
-const bar       = document.getElementById('bar');
 
 // the tanka form: five lines of 5-7-5-7-7 syllables
 const TARGETS = [5, 7, 5, 7, 7];
@@ -1146,25 +1145,11 @@ function focusEnd() {
   openCaretLine();
 }
 
-/* Click anywhere in the room to write — and on a phone, again to stop.
- *
- * The margin is a big soft target for a mouse that missed, which is all
- * this was for. But a soft keyboard has no dismiss of its own on a page
- * like this: there is no Done bar over a contenteditable, and every tap
- * outside the writing used to land here and hand the focus straight back.
- * You could not put the pen down, which stopped mattering the moment the
- * bar started leaving when the keyboard arrives — the toolbar and the
- * count would have been gone for the rest of the session.
- *
- * So while a keyboard is up, the empty room is the way out of it. No
- * pointer sniffing decides that: 'down' on the bar means a soft keyboard
- * is up, which is only ever true on a phone.
- */
+// click anywhere in the room to write
 page.addEventListener('mousedown', e => {
   if (editor.contains(e.target)) return;
   e.preventDefault();
-  if (bar.classList.contains('down')) editor.blur();
-  else focusEnd();
+  focusEnd();
 });
 
 fsBtn.addEventListener('click', () => {
@@ -1427,62 +1412,6 @@ addEventListener('resize', () => {
   clearTimeout(resizeTimer);
   resizeTimer = setTimeout(refresh, 100);
 });
-
-/* ---------- the bar and the keyboard ---------- */
-
-/* A phone keyboard doesn't shrink the page it covers.
- *
- * It shrinks the *visual* viewport — what you can see — and leaves the
- * layout viewport, which is what 'position: fixed' measures itself
- * against, exactly as tall as it was. So a bar sitting at 'bottom: 0' is
- * pinned to a line that now lives behind the keyboard, and iOS re-anchors
- * fixed elements as the visual viewport pans: it rides up, wanders while
- * you scroll, and comes to rest across the writing.
- *
- * You can chase that — measure the gap, lift the bar by it, replace it
- * every time the viewport moves — and it half works, which turns out to
- * be the problem. The bar stops drifting and starts hovering: still over
- * the poem, still moving when the page does, just less wrongly. Half a
- * fix reads as jank with better manners.
- *
- * So the bar goes instead. A phone with its keyboard up is a phone being
- * written on, and none of ? / clear / export / theme is wanted mid-line.
- * Nothing is positioned against a viewport that lies, nothing chases a
- * late event, and there is no bar on screen to drift: the whole class of
- * bug leaves with it. What the keyboard costs is the running total, which
- * is why putting the pen down has to bring it straight back — see the
- * note on the room's own tap, up by focusEnd().
- */
-
-// a gap smaller than this is browser chrome rather than a keyboard, and
-// a bar that vanished for an address bar would be its own kind of rude
-const KEY_MIN = 120;
-
-/* → is that gap at the foot of the page a keyboard?
- *
- * What is hidden is whatever of the layout viewport falls below the
- * visual one, and that is the whole of the sum: the height the visual
- * viewport gave up, plus however far down it has been panned.
- *
- * Numbers in, an answer out, no DOM — the one part of this that can be
- * checked without a phone in your hand.
- */
-function keyboardUp(layoutH, viewH, viewTop) {
-  return layoutH - viewH - viewTop > KEY_MIN;
-}
-
-const view = window.visualViewport;
-
-function placeBar() {
-  const up = !!view &&
-    keyboardUp(document.documentElement.clientHeight, view.height, view.offsetTop);
-  // the class is the state — the same trick .open and data-ghost use
-  bar.classList.toggle('down', up);
-}
-
-// the keyboard arriving or leaving, and the rotation that resizes both.
-// No scroll listener: there is nothing on screen to keep in place.
-if (view) view.addEventListener('resize', placeBar);
 // mobile browsers discard tabs without warning — save on every hide
 addEventListener('pagehide', save);
 document.addEventListener('visibilitychange', () => { if (document.hidden) save(); });
