@@ -258,6 +258,34 @@ body {
   pointer-events: none;
 }
 
+/* The foot of the screen, where the count and the buttons live.
+ *
+ * The writing runs the full height of the room and the bar is fixed
+ * across the bottom of it, so scroll far enough and a line of the poem is
+ * sharing pixels with the word "export". The room could reserve space,
+ * but on a phone a soft keyboard resizes what "the foot of the screen"
+ * means the moment it opens, and chasing that was tried twice and was
+ * worse both times. This doesn't measure anything: the page simply stops
+ * being legible where the chrome starts, fading into its own background,
+ * and a keyboard is welcome to cover whatever it likes.
+ *
+ * Solid for as far as the bar really reaches, then fading over as much
+ * again — a line dims out rather than ending at a ruled edge.
+ *
+ * Its place in index.html is its layering. Nothing in this sheet sets a
+ * z-index, so paint order is DOM order, and .doc is positioned: put this
+ * any earlier and the writing paints straight over it, which looks
+ * exactly like the rule not working. After the poem, before the water
+ * and the bar — over the writing, under the count. */
+.edges {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(to top,
+      var(--bg) calc(env(safe-area-inset-bottom) + 2.6rem), transparent)
+    bottom / 100% calc(env(safe-area-inset-bottom) + 5.2rem) no-repeat;
+}
+
 /* the bottom toolbar spans the viewport; env(safe-area-inset-*) pads
    past notches and home-bar indicators on phones */
 .bar {
@@ -275,20 +303,6 @@ body {
   font-size: .8rem;
   color: var(--dim);
   letter-spacing: .05em;
-  transition: opacity .18s ease, transform .18s ease, visibility .18s;
-}
-
-/* Down: a phone keyboard is up, and the bar has left rather than trying
-   to find somewhere to stand (app.js says why at length).
-
-   It goes straight down and out, under the keyboard that displaced it.
-   visibility rides the same transition so it lands hidden from the
-   pointer and from a screen reader both, rather than staying an invisible
-   row of buttons across the foot of the page. */
-.bar.down {
-  opacity: 0;
-  visibility: hidden;
-  transform: translateY(100%);
 }
 
 .tools {
@@ -441,6 +455,22 @@ body {
 @media (pointer: coarse) {
   .tools { gap: .4rem; }
   .tool { padding: .75rem .6rem; }
+
+  /* The other edge, which only a phone has: the clock, the signal bars
+     and the battery sit across the top of the screen, and with
+     viewport-fit=cover the writing runs underneath them.
+
+     A second band rather than a second layer on .edges, so the fade at
+     the foot — which every device wants, the bar being everywhere — stays
+     written once. Same idea, other direction. */
+  .edges::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: calc(env(safe-area-inset-top) + 3.4rem);
+    background: linear-gradient(to bottom,
+      var(--bg) calc(env(safe-area-inset-top) + 1rem), transparent);
+  }
 
   /* There is no Tab key here, so the suggestion has to look like something
      a thumb can take: a faint chip of the color the page already uses

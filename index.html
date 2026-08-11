@@ -2,12 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<!-- interactive-widget says what the soft keyboard should do to the page:
-     resize it, so a bar pinned to the bottom stays above the keyboard
-     rather than behind it. Android honours it; iOS ignores it and needs
-     the visualViewport half of the same job, in app.js -->
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover,
-                               interactive-widget=resizes-content">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Tanka Time</title>
 <meta name="description" content="A quiet room for tanka — syllables counted line by line.">
 <!-- theme-color tints the browser chrome; app.js updates it per theme -->
@@ -35,9 +30,14 @@
          role="textbox" aria-multiline="true" aria-label="Write"></div>
   </div>
 </main>
+<!-- The two edges the phone and the toolbar have claimed, faded out in
+     style.css. It sits here and not inside .page because the layering is
+     the DOM order: after the writing, so it covers it; before the water
+     and the bar, so those stay clear on top of it. -->
+<div class="edges" aria-hidden="true"></div>
 <!-- the clear-hold water is drawn here by app.js -->
 <canvas class="flood" id="flood" aria-hidden="true"></canvas>
-<div class="bar" id="bar">
+<div class="bar">
   <div class="tools">
     <button id="context" class="tool" title="Context" aria-label="About Tanka Time">?</button>
   </div>
