@@ -327,7 +327,11 @@ html.swapping, html.swapping * { transition: none !important; }
  * and the bar — over the writing, under the count. */
 .edges {
   position: fixed;
-  inset: 0;
+  /* top and height rather than inset, because app.js sets both when a
+     keyboard is up: the fade belongs to what can be *seen*, and that is
+     not the same box as the page while iOS is holding the caret in view */
+  top: 0; left: 0; right: 0;
+  height: 100%;
   pointer-events: none;
   /* solid as far as the bar itself reaches, then fading over as much
      again — measured from --foot, so the band moves with the bar rather
