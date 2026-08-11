@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tanka Time — probe</title>
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<style>
+  /* Deliberately plain. This page exists to answer one question — what
+     does this phone actually report — and anything decorative here would
+     be one more thing that could be lying. */
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; background: #101410; color: #9be9a8;
+               font: 14px/1.5 ui-monospace, Menlo, monospace; }
+  body { padding: env(safe-area-inset-top) 1rem env(safe-area-inset-bottom); }
+  h1 { font-size: 14px; font-weight: 700; margin: 1rem 0 .5rem; }
+  table { border-collapse: collapse; width: 100%; }
+  td { padding: .15rem 0; vertical-align: top; }
+  td:first-child { color: #3d5c46; padding-right: .75rem; white-space: nowrap; }
+  b { color: #4ade80; }
+  input { width: 100%; margin-top: 1rem; padding: .6rem; font: inherit;
+          background: #0a0c0a; color: inherit; border: 1px solid #3d5c46; }
+  /* the two bands the app draws, so their real height is visible here */
+  .top, .bot { position: fixed; left: 0; right: 0; background: #e0525233; }
+  .top { top: 0; height: calc(env(safe-area-inset-top) + 3.4rem); }
+  .bot { bottom: 0; height: calc(.5rem + env(safe-area-inset-bottom) * .5 + 3.4rem); }
+</style>
+</head>
+<body>
+<div class="top"></div><div class="bot"></div>
+<h1>what this phone reports</h1>
+<table id="out"></table>
+<input id="k" placeholder="tap here to raise the keyboard">
+<script>
+const rows = [
+  ['screen', () => `${screen.width} x ${screen.height} css px`],
+  ['devicePixelRatio', () => devicePixelRatio],
+  ['innerHeight (layout)', () => innerHeight],
+  ['visualViewport.height', () => visualViewport ? Math.round(visualViewport.height) : '—'],
+  ['visualViewport.offsetTop', () => visualViewport ? Math.round(visualViewport.offsetTop) : '—'],
+  ['keyboard gap', () => visualViewport
+      ? Math.round(innerHeight - visualViewport.height - visualViewport.offsetTop) : '—'],
+  ['safe-area top', () => px('--sa-top')],
+  ['safe-area bottom', () => px('--sa-bot')],
+  ['half of bottom', () => px('--sa-half')],
+  ['--foot would be', () => px('--sa-foot')],
+  ['standalone?', () => matchMedia('(display-mode: standalone)').matches ? 'yes' : 'no'],
+  ['pointer coarse?', () => matchMedia('(pointer: coarse)').matches ? 'yes' : 'no'],
+];
+// read the env() values by letting the browser compute them for us
+const probe = document.createElement('div');
+probe.style.cssText = 'position:absolute;visibility:hidden;' +
+  '--sa-top:env(safe-area-inset-top);--sa-bot:env(safe-area-inset-bottom);' +
+  '--sa-half:calc(env(safe-area-inset-bottom) * .5);' +
+  '--sa-foot:calc(.5rem + env(safe-area-inset-bottom) * .5);' +
+  'top:var(--sa-top);left:var(--sa-bot)';
+document.body.appendChild(probe);
+function px(name) {
+  // custom properties come back as written, so resolve through a real
+  // property the browser has to compute
+  probe.style.height = `var(${name})`;
+  const v = getComputedStyle(probe).height;
+  return v === 'auto' ? '(unsupported)' : v;
+}
+function draw() {
+  document.getElementById('out').innerHTML = rows
+    .map(([k, f]) => { let v; try { v = f(); } catch (e) { v = 'error'; }
+                       return `<tr><td>${k}</td><td><b>${v}</b></td></tr>`; })
+    .join('');
+}
+draw();
+addEventListener('resize', draw);
+visualViewport?.addEventListener('resize', draw);
+visualViewport?.addEventListener('scroll', draw);
+setInterval(draw, 500);
+</script>
+</body>
+</html>

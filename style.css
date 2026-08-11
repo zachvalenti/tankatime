@@ -525,6 +525,12 @@ html.swapping, html.swapping * { transition: none !important; }
     height: calc(env(safe-area-inset-top) + 3.4rem);
     background: linear-gradient(to bottom,
       var(--bg) calc(env(safe-area-inset-top) + 1rem), transparent);
+    /* This band alone follows the visible top — app.js sets --view-top
+       when a keyboard makes iOS slide the view. The band at the foot does
+       not move with it: down there the keyboard is the edge, and a fade
+       lifted above the keys puts a washed-out stripe across the middle of
+       the writing, which is worse than the problem it solves. */
+    transform: translateY(var(--view-top, 0px));
   }
 
   /* There is no Tab key here, so the suggestion has to look like something

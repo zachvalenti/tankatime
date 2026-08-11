@@ -176,10 +176,16 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
   worse. Nothing here may move a control or shift the writing — the worst
   failure allowed is a gradient arriving a frame late.
 
-  Testable: `edgeBox(0, 844, 844)` is `null` (nothing to correct, so no inline
-  geometry at rest — assert the element's `style.transform` and `style.height`
-  are both empty), `edgeBox(0, 400, 844)` shortens it, `edgeBox(120, 400, 844)`
-  moves it down by exactly the offset, and sub-pixel noise still yields `null`.
+  **Only the *top* band**, and this is the trap: resizing the whole `.edges`
+  layer to the visible box was tried and shipped and was worse — it drags the
+  fade at the foot up above the keyboard, laying a washed-out stripe across
+  the middle of the writing instead of hiding an edge. Down there the keyboard
+  *is* the edge. So `placeEdges()` sets one custom property, `--view-top`, and
+  `.edges::before` translates by it; the layer itself is never moved or
+  resized. Assert exactly that: `edges.style.height` and `style.transform`
+  stay empty, computed height equals `innerHeight`, and only `--view-top`
+  changes. `edgeTop()` is the arithmetic — 0 for no offset, the rounded
+  offset otherwise, 0 for sub-pixel noise or a missing number.
 
 - **The bar ignores the soft keyboard, on purpose.** A phone keyboard shrinks
   the visual viewport and leaves the layout viewport alone, so
