@@ -449,6 +449,130 @@ function ftnNames(src, start, kinds) {
   return out;
 }
 
+/* ---------- how long is it? ---------- */
+
+/* A screenplay page is a fixed thing: Courier at ten characters to the
+ * inch, a six-inch column, fifty-five lines from the top margin to the
+ * bottom. That is why a page of script is a minute of screen and why
+ * anyone can say "we're at ninety" and be understood. The number is
+ * worth having in the margin for the same reason the syllable count is:
+ * it is the form telling you where you are.
+ *
+ * These are the column widths in characters, and they are the standard
+ * ones — not the widest a renderer could allow. A cue is thirty-three
+ * columns and a parenthetical twenty-six because that is what a
+ * screenplay page looks like; a tool that lets them run to the full
+ * sixty-one is being generous with something that isn't its to give.
+ */
+const PAGE_LINES = 55;
+const FTN_COLS = {
+  'ftn-scene': 61, 'ftn-action': 61, 'ftn-transition': 61, 'ftn-centered': 61,
+  'ftn-lyric': 61, 'ftn-character': 33, 'ftn-paren': 26, 'ftn-dialogue': 36,
+};
+
+// two people talking at once share the width, and each column keeps a
+// little less than half of what it had
+const FTN_DUAL_COLS = 0.75;
+
+// the blank line a shape wants above it. Dialogue and a parenthetical sit
+// straight under the cue they belong to; everything else gets air.
+const FTN_SPACE = {
+  'ftn-scene': 1, 'ftn-action': 1, 'ftn-transition': 1, 'ftn-centered': 1,
+  'ftn-lyric': 0, 'ftn-character': 1, 'ftn-paren': 0, 'ftn-dialogue': 0,
+};
+
+/* How many rows a line of text takes in a column that wide.
+ *
+ * Greedy word wrap, the way every renderer breaks a line — dividing the
+ * characters by the width would pack them perfectly and quietly lose the
+ * ragged end of every row.
+ */
+function ftnRows(text, cols) {
+  const t = text.trim();
+  if (!t) return 1;
+  let rows = 1, at = 0;
+  for (const word of t.split(/\s+/)) {
+    if (at === 0) { at = word.length; }
+    else if (at + 1 + word.length <= cols) { at += 1 + word.length; }
+    else { rows++; at = word.length; }
+    while (at > cols) { rows++; at -= cols; }  // a word longer than the column
+  }
+  return rows;
+}
+
+/* → the length of the script in pages, as a fraction.
+ *
+ * What this measures is the script's own length: how much page the
+ * writing occupies at the standard geometry. It is not a promise about
+ * where any particular program will break its pages — every renderer
+ * makes its own choices at a page bottom, and they disagree with each
+ * other by whole pages over a feature. Held against a renderer that
+ * fills its pages properly this lands within a third of a page at forty,
+ * and drifts to about a page by a hundred and twenty. Two decimals
+ * because a fifth of a page is a real amount of writing; the third
+ * decimal would be a lie about how well anyone knows this.
+ *
+ * The title page doesn't count — it isn't the script. Neither do
+ * sections and synopses, which are the writer's scaffolding and which no
+ * renderer prints by default, nor the boneyard, which is cut.
+ */
+function ftnPages(src, start, kinds) {
+  const ks = kinds || ftnKinds(src, start);
+
+  // 1. gather the lines into elements — a run of the same shape, broken
+  //    by the blank lines between them. Dialogue is the exception: each
+  //    of its lines is its own paragraph, which is how a renderer lays
+  //    a speech out and how it is allowed to break one.
+  const els = [];
+  for (let i = start || 0; i < src.length; i++) {
+    const kind = ks[i];
+    if (!src[i].trim()) { els.push(null); continue; }
+    const cls = Object.keys(FTN_COLS).find(c => isKind(kind, c));
+    if (!cls) continue;  // title page, boneyard, scaffolding: not the script
+    const dual = isKind(kind, FTN_DUAL_CLS);
+    const runs = cls !== 'ftn-dialogue' && cls !== 'ftn-paren';
+    const last = els[els.length - 1];
+    if (last && runs && last.cls === cls && last.dual === dual) last.lines.push(src[i]);
+    else els.push({ cls, dual, lines: [src[i]] });
+  }
+
+  // 2. gather elements into blocks: a speech is a cue and everything it
+  //    says, because a dual speech is measured against the whole of the
+  //    one beside it rather than line for line
+  const blocks = [];
+  for (const el of els) {
+    if (!el) continue;
+    const last = blocks[blocks.length - 1];
+    const said = el.cls === 'ftn-dialogue' || el.cls === 'ftn-paren';
+    if (said && last && last.speech && last.dual === el.dual) last.els.push(el);
+    else blocks.push({ speech: el.cls === 'ftn-character', dual: el.dual, els: [el] });
+  }
+
+  // 3. add it up
+  const high = (block, cols) => block.els.reduce((n, el, i) =>
+    n + (i ? FTN_SPACE[el.cls] : 0) +
+    el.lines.reduce((r, ln) => r + ftnRows(ln, Math.floor(FTN_COLS[el.cls] * cols)), 0), 0);
+
+  let lines = 0, open = false;
+  for (let b = 0; b < blocks.length; b++) {
+    const block = blocks[b];
+    const next = blocks[b + 1];
+    // a speech with a dual speech behind it: the two stand side by side,
+    // so the pair costs whichever of them is taller, not both
+    if (block.speech && next && next.dual && !block.dual) {
+      lines += (open ? 1 : 0) +
+        Math.max(high(block, FTN_DUAL_COLS), high(next, FTN_DUAL_COLS));
+      open = true;
+      b++;
+      continue;
+    }
+    lines += (open ? FTN_SPACE[block.els[0].cls] : 0) + high(block, 1);
+    open = true;
+  }
+
+  return lines / PAGE_LINES;
+}
+
 /* ---------- ⌘D: two people at once ---------- */
 
 /* → { line, text } for the one cue whose caret should go on or come off,
@@ -509,6 +633,6 @@ function ftnText(src, start) {
 // Node (a test run, or a future build tool) sees module; the browser
 // doesn't and skips this
 if (typeof module !== 'undefined') {
-  module.exports = { ftnKinds, ftnRuns, ftnText, ftnNames, ftnDual, ftnFade,
+  module.exports = { ftnKinds, ftnRuns, ftnText, ftnNames, ftnDual, ftnFade, ftnPages,
                      cueName, isKind, FTN_CLASSES, FTN_CAPS, FTN_DUAL_CLS, isShout };
 }

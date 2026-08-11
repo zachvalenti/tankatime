@@ -127,6 +127,28 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
     takes a suggestion (see above) and is otherwise left alone.
   - `localStorage['tanka-time-total']` is *unchanged* by the mode — the
     face is borrowed, not overwritten.
+  - **The page count** (`ftnPages()` in `fountain.js`). In a script the
+    syllable face becomes `12.40 pages`; the stored setting is still
+    `syllables` underneath, so a poem opened afterwards is unchanged — assert
+    both directions. The gutter stays hidden (pages is not the syllable face).
+
+    It measures the script's *content* length at standard geometry: 55 lines
+    a page, 61-column action, 36 dialogue, **33 character, 26 parenthetical**,
+    dual columns at 0.75. Those last three are the industry widths, not
+    frame-minus-indent — screenplain leaves them unconstrained at 42/48 and is
+    wrong to. Title page, sections, synopses and the boneyard are all out.
+
+    Validated by rendering a generated corpus with **afterwriting** (npm,
+    `--setting print_title_page=false`) and bisecting for the prefix where it
+    flips N→N+1 pages, which is the only place the true length is exactly
+    N.00. Worst error over 17 such points was **0.09 pages**; a stitched
+    120-page action-heavy script came in 0.89 low. Do not calibrate against
+    screenplain: its paginator wastes ~11% of every page (47 rows of content
+    spilling out of a 55-line frame), which is a deficiency, not a standard.
+
+    The dual-dialogue trap: two speeches side by side cost the *taller* of
+    them, at 0.75 width — counting both stacked overstates by a full page per
+    dual-heavy page, which is what the first draft did.
 - **The bar ignores the soft keyboard, on purpose.** A phone keyboard shrinks
   the visual viewport and leaves the layout viewport alone, so
   `position: fixed; bottom: 0` sits behind it. Two fixes were tried on a real

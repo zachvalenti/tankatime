@@ -30,6 +30,18 @@ A quiet room for tanka. WriteRoom inspired full-screen writing with a syllable c
   `@ma` completes the same way `MA` does — the mark isn't part of the name,
   so it's matched past and left where you put it. The price is that there
   is no mixed-case cue here: `@McCLANE` exports as `@MCCLANE`.
+- In a script the count in the margin gives way to a **page count** —
+  `12.40 pages` — because that is the number a screenplay keeps about
+  itself, near enough a minute of screen each, the way syllables are the
+  number a tanka keeps. It measures the script's own length at the
+  standard geometry (Courier, a six-inch column, fifty-five lines to the
+  page, cues and parentheticals at their proper widths), with the title
+  page and the writer's scaffolding left out. It is not a promise about
+  where any one program will break its pages: renderers disagree with
+  each other by whole pages over a feature. Against one that fills its
+  pages properly it lands within about a tenth of a page on
+  dialogue-forward writing, and runs up to a page short on a very long
+  action-heavy script, where a renderer loses a little at every break.
 - Undo is the app's own, because highlighting as you type rewrites the very
   nodes a browser's undo remembers. A run of typing is one step, ended when
   the typing becomes deleting, when the caret moves elsewhere, when a word

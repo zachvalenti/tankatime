@@ -324,7 +324,7 @@ function refresh() {
   // poem, so every offsetTop read below has to be the settled one
   for (let i = 0; i < rows.length; i++)
     decorate(rows[i], i < modes.lines, modes.simple, kinds && kinds[i]);
-  measure(rows, src, modes);
+  measure(rows, src, modes, kinds);
   setGhost(rows, src, modes, kinds);
 
   // Both of these rewrite the document, so they go last and each starts
@@ -561,7 +561,7 @@ function openCaretLine() {
   // marks appearing widen the line they are on, which can shift every
   // number below it
   const { rows, src, modes, kinds } = readDoc();
-  measure(rows, src, modes);
+  measure(rows, src, modes, kinds);
   setGhost(rows, src, modes, kinds);
 }
 
@@ -569,11 +569,15 @@ function openCaretLine() {
 // DocumentFragment first so the page reflows once, and each is pinned to
 // its line's offsetTop — the gutter is a separate absolutely-positioned
 // column that shadows the editor. Reads the editor, never writes to it.
-function measure(rows, src, modes) {
+function measure(rows, src, modes, kinds) {
   const frag = document.createDocumentFragment();
   const blank = src.map(t => !t.trim());
   const head = src.map(mdIsHeading);
   let pos = 0, total = 0, words = 0, any = false;
+  // a script's own measure is how long it runs, and that is a question
+  // about the whole document rather than about any line in it — worked
+  // out in one pass here off the kinds this repaint already has
+  const pages = modes.fountain ? ftnPages(src, modes.lines, kinds) : 0;
 
   for (let i = 0; i < rows.length; i++) {
     // whatever the first line asked for is scaffolding, not poem: no
@@ -639,7 +643,7 @@ function measure(rows, src, modes) {
   if (any) gutter.replaceChildren(frag);
   else gutter.replaceChildren();
   doc.classList.toggle('empty', !any);
-  totals = { syllables: total, words };
+  totals = { syllables: total, words, pages };
   renderTotal();
   scheduleSave();
 }
@@ -651,28 +655,33 @@ function measure(rows, src, modes) {
 const MODES = ['syllables', 'words', 'timer'];
 let totalMode = MODES.includes(localStorage.getItem(TOTAL_KEY))
   ? localStorage.getItem(TOTAL_KEY) : 'syllables';
-let totals = { syllables: 0, words: 0 };
+let totals = { syllables: 0, words: 0, pages: 0 };
 
-/* /fountain removes one of the three faces, and the removal has to be
+/* /fountain swaps one of the three faces, and the swap has to be
  * temporary in a way the stored setting is not.
  *
  * The face is a setting: global, remembered, chosen once and kept. The
  * mode is a property of the document: it lives in the first line, and
- * deleting that line has to give everything back. So writing 'words'
- * into storage the moment a script starts would be the wrong kind of
- * permanent — a poem opened afterwards would have lost its syllables,
+ * deleting that line has to give everything back. So writing another
+ * face into storage the moment a script starts would be the wrong kind
+ * of permanent — a poem opened afterwards would have lost its syllables,
  * with nothing on the page to explain why.
  *
  * Instead the stored face is left exactly as it was and read through
- * here. Syllables become words while a script is open, and the poem's
+ * here. Syllables become pages while a script is open, and the poem's
  * own setting is still underneath when the script closes.
+ *
+ * Pages rather than words, because they are the same kind of number:
+ * the count the form itself keeps. A tanka is measured in syllables and
+ * a screenplay in pages — near enough a minute of screen each — and
+ * both are the thing you glance at to know where you are.
  */
 let fountain = false;
 
-function faces() { return fountain ? ['words', 'timer'] : MODES; }
+function faces() { return fountain ? ['pages', 'words', 'timer'] : MODES; }
 
 function shownMode() {
-  return fountain && totalMode === 'syllables' ? 'words' : totalMode;
+  return fountain && totalMode === 'syllables' ? 'pages' : totalMode;
 }
 
 // the timer counts this sitting only: it starts when the page loads,
@@ -697,6 +706,16 @@ function renderTotal() {
     return;
   }
   const n = totals[mode];
+  // Pages come with two decimals and no rounding to a whole one. A script
+  // is 3.40 pages the way a board is 3.4 metres — the fraction is the
+  // useful part, and a page of screenplay is about a minute of screen, so
+  // the tenths are minutes. The hundredth is there to stop the number
+  // twitching between two tenths on a single keystroke, not because
+  // anyone can know a script's length that well: see ftnPages().
+  if (mode === 'pages') {
+    totalEl.textContent = n ? `${n.toFixed(2)} pages` : '';
+    return;
+  }
   const noun = mode === 'words' ? 'word' : 'syllable';
   totalEl.textContent = n ? `${n} ${noun}${n === 1 ? '' : 's'}` : '';
 }
