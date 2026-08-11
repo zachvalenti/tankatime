@@ -1479,27 +1479,26 @@ addEventListener('resize', () => {
  * control or shift the writing — at worst a gradient arrives a frame
  * late, which is a great deal cheaper than a toolbar that jumps.
  */
-/* → where the fade should sit, or null when the visible box and the
- * layout box are the same thing and the stylesheet already has it right.
+/* → how far the top band has to come down to sit on the visible top.
  *
- * Numbers in, a box out, no DOM — the part of this that can be checked
- * without a phone in your hand.
+ * A number in, a number out, no DOM — the part of this that can be
+ * checked without a phone in your hand.
  */
-function edgeBox(offsetTop, viewH, layoutH) {
-  const top = Math.max(0, Math.round(offsetTop));
-  const height = Math.round(viewH);
-  return top === 0 && height === Math.round(layoutH) ? null : { top, height };
+function edgeTop(offsetTop) {
+  return Math.max(0, Math.round(offsetTop || 0));
 }
 
 const view = window.visualViewport;
 
 function placeEdges() {
   if (!view) return;
-  const box = edgeBox(view.offsetTop, view.height, innerHeight);
-  // the ordinary case leaves the element exactly as the stylesheet left
-  // it, rather than pinning it with inline values that say the same thing
-  edges.style.transform = box && box.top ? `translate3d(0,${box.top}px,0)` : '';
-  edges.style.height = box ? box.height + 'px' : '';
+  const top = edgeTop(view.offsetTop);
+  // the top band only. Resizing the whole layer to the visible box was
+  // tried and was worse: it drags the fade at the foot up above the
+  // keyboard, where instead of hiding the edge of the writing it lays a
+  // washed-out stripe across the middle of it. Down there the keyboard is
+  // the edge, and a fade behind the keyboard is exactly right.
+  edges.style.setProperty('--view-top', top ? top + 'px' : '0px');
 }
 
 if (view) {
