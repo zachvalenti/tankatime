@@ -48,8 +48,36 @@
   --sel:  rgba(230, 201, 143, .25);
 }
 
+/* The document itself never scrolls. The room inside it does.
+ *
+ * This is one line of CSS and the answer to a bug that took three goes
+ * to understand. A phone's keyboard does not shorten the page it covers:
+ * it shrinks the *visual* viewport — what you can see — and leaves the
+ * layout viewport, the one 'position: fixed' measures against, exactly
+ * as tall as it was. The browser then slides the visual viewport around
+ * inside it to keep the caret in sight, and every fixed thing goes with
+ * it. That is why the toolbar wandered, and why the faded edges wandered
+ * after it: they were pinned to a frame that was itself moving.
+ *
+ * Nothing can be pinned to a moving frame. So the frame is made to hold
+ * still — the document is given no scroll at all, and the writing scrolls
+ * inside .room instead. There is then nothing for the browser to slide,
+ * and the edges and the bar stay where they are put, whatever the
+ * keyboard does and however far the poem runs.
+ */
+html, body {
+  height: 100%;
+  overflow: hidden;
+}
+
 html {
   background: var(--bg);
+}
+
+.room {
+  position: fixed;
+  inset: 0;
+  overflow-y: auto;
   /* iOS standalone: a bottom-edge rubber-band can wedge the scroll */
   overscroll-behavior-y: none;
 }
@@ -57,7 +85,7 @@ html {
 /* keep the room still while the context card is up — the card's own
    scroll must not chain into the page behind it. :has() lets the page
    react to the state of an element inside it */
-html:has(dialog[open]) { overflow: hidden; }
+html:has(dialog[open]) .room { overflow: hidden; }
 
 body {
   background: var(--bg);
@@ -75,7 +103,9 @@ body {
 .page {
   max-width: 38rem;
   margin: 0 auto; /* the classic centering move: auto side margins */
-  min-height: 100vh;
+  /* of the room, which is the viewport — .page no longer measures itself
+     against the document, because the document has no height to speak of */
+  min-height: 100%;
   font-size: var(--fs);
   line-height: 2em; /* computes to px so the gutter inherits the exact line grid */
   /* generous top/bottom padding keeps the writing line mid-screen;
