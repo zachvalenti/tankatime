@@ -1266,8 +1266,46 @@ const water = (() => {
   function fit() {
     const dpr = Math.min(devicePixelRatio || 1, 2);
     const w = Math.round(innerWidth * dpr), h = Math.round(innerHeight * dpr);
-    if (flood.width !== w || flood.height !== h) { flood.width = w; flood.height = h; }
+    if (flood.width !== w || flood.height !== h) {
+      flood.width = w; flood.height = h;
+      bands();
+    }
     return dpr;
+  }
+
+  /* How tall the two faded bands are, in CSS pixels.
+   *
+   * Measured rather than computed: their heights are written in CSS out
+   * of the phone's safe-area insets, which only CSS can see. The top band
+   * exists on coarse pointers alone, and on a mouse there is no ::before
+   * at all — getComputedStyle answers 'auto' for it, which parses to NaN
+   * and lands at zero, meaning "no band", which is exactly right. */
+  let topBand = 0, botBand = 0;
+  function bands() {
+    const read = which => parseFloat(getComputedStyle(edges, which).height) || 0;
+    topBand = read('::before');
+    botBand = read('::after');
+  }
+
+  const clamp01 = n => (n < 0 ? 0 : n > 1 ? 1 : n);
+
+  /* Hand each band its share of the tide.
+   *
+   * A band is at full strength while the water is still a band's height
+   * away from it, and gone by the moment the surface arrives at its near
+   * edge — the foot's near edge being the top of that band, the top
+   * band's being its bottom. Each therefore fades over the last stretch
+   * of water before the water would have covered it, and is out of the
+   * way before it could read as a frame rather than as tide.
+   *
+   * Measuring from the band's own edge and easing over the band's own
+   * height is what makes this hold at any size: nothing here knows how
+   * tall the screen is except through where the water actually is. */
+  function stepAside(surface) {
+    edges.style.setProperty('--fade-top',
+      topBand ? clamp01((surface - topBand) / topBand) : 1);
+    edges.style.setProperty('--fade-bot',
+      botBand ? clamp01((surface - (innerHeight - botBand)) / botBand) : 1);
   }
 
   // one animation frame: advance the tide, redraw all three layers
@@ -1292,6 +1330,7 @@ const water = (() => {
     const base = (h + 70 * dpr) - (h + 170 * dpr) * p;
     const swell = 1 + fury * 1.5;
     const rush = 1 + fury * 3;
+    stepAside(base / dpr); // the bands get out of the water's way
 
     ctx.clearRect(0, 0, w, h);
     ctx.fillStyle = tide;
@@ -1324,6 +1363,10 @@ const water = (() => {
     mode = 'idle';
     p = 0;
     ctx.clearRect(0, 0, flood.width, flood.height);
+    // dry again: the bands come back whole rather than wherever the
+    // last frame left them
+    edges.style.removeProperty('--fade-top');
+    edges.style.removeProperty('--fade-bot');
   }
 
   return {

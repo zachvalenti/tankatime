@@ -341,12 +341,38 @@ html.swapping, html.swapping * { transition: none !important; }
   top: 0; left: 0; right: 0;
   height: 100%;
   pointer-events: none;
-  /* solid as far as the bar itself reaches, then fading over as much
-     again — measured from --foot, so the band moves with the bar rather
-     than leaving it adrift in the middle of a gradient */
+}
+
+/* solid as far as the bar itself reaches, then fading over as much
+   again — measured from --foot, so the band moves with the bar rather
+   than leaving it adrift in the middle of a gradient.
+
+   A band of its own rather than a background on .edges, so that it can
+   be faded separately from the one at the top: see --fade-bot below. */
+.edges::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: calc(var(--foot) + 3.4rem);
   background: linear-gradient(to top,
-      var(--bg) calc(var(--foot) + 1.9rem), transparent)
-    bottom / 100% calc(var(--foot) + 3.4rem) no-repeat;
+    var(--bg) calc(var(--foot) + 1.9rem), transparent);
+  /* Each band steps aside as the water reaches it.
+   *
+   * The bands are opaque --bg, and the water is a wash of about a
+   * quarter opacity. Water over writing is water; water over a flat
+   * band is a flat band very slightly tinted — so the clear-hold flood
+   * came out with a dead block across the top of the screen and another
+   * across the foot, the tide framed instead of covering the page.
+   *
+   * The bands only exist to keep *writing* out from under the clock and
+   * the toolbar, and once the water is over a band there is no writing
+   * left there to keep out — the water is doing that job itself. So each
+   * one fades exactly as the surface arrives at it and comes back as the
+   * tide falls, which app.js drives from the surface's own position
+   * rather than from a timer, so it holds on any screen. Absent that —
+   * on a page with no water, or before app.js runs — the fallback is 1
+   * and the bands are simply there. */
+  opacity: var(--fade-bot, 1);
 }
 
 /* the bottom toolbar spans the viewport; env(safe-area-inset-*) pads
@@ -539,6 +565,7 @@ html.swapping, html.swapping * { transition: none !important; }
        lifted above the keys puts a washed-out stripe across the middle of
        the writing, which is worse than the problem it solves. */
     transform: translateY(var(--view-top, 0px));
+    opacity: var(--fade-top, 1); /* steps aside for the water; see ::after */
   }
 
   /* There is no Tab key here, so the suggestion has to look like something

@@ -48,12 +48,27 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
   must return `haiku: false` when `/fountain` is also present, **in either
   order**, because a script has no syllable form for the shorter one to shorten.
   Check a plain tanka page in the same run: the targets are shared code.
-- **theme-color must be a *new element*, not a rewritten attribute.** Safari
-  tints its own toolbar from it and reads the element; setting `.content` in
-  place changes nothing it notices, so switching dusk → room leaves a purple
-  bar under a black page, and a reload doesn't clear it either. `setThemeColor()`
-  replaces the node. Assert a distinct element per change, exactly one in
-  `<head>` at a time, and that its colour matches the computed page background.
+- **The manifest must declare no `theme_color`.** Safari tints its own toolbar
+  from `theme-color`, and `manifest.webmanifest` deliberately leaves the field
+  out: a manifest is fetched *after* the document parses, and once Safari has
+  one it stops listening to the meta tag. The symptom is precise and worth
+  recognising, because it sends you looking in the wrong place — the chrome
+  takes whatever colour the app *loaded* on and holds it through every theme
+  switch, then updates on reload and sticks again. That reads exactly like "the
+  meta isn't being re-read", and it is not: the meta is fine.
+
+  Two dead ends, both walked, neither of them the cause. Rewriting `.content`
+  in place works in Safari — it is what the app did from its first commit.
+  Replacing the element outright also works, and `setThemeColor()` still does
+  that, harmlessly. Neither is the fix, so don't reach for either when this
+  recurs; check the manifest. Assert the meta's colour tracks the computed page
+  background across a theme switch, exactly one in `<head>`, and that
+  `manifest.webmanifest` has no `theme_color` key at all.
+
+  None of this is visible in Chromium, which does not tint anything. Reproduce
+  it on a phone with `probe.html`, whose experiment varies each candidate
+  independently and links a manifest whose `theme_color` is a red that appears
+  nowhere else, so the source being listened to is never in doubt.
 - Clear hold: early release cancels and keeps text; 3 s hold clears.
 - Reload after a 500 ms pause to check the debounced localStorage save.
 - Markdown: `# ` heading (blank gutter, resets the 5-7-5-7-7 targets below
@@ -222,10 +237,31 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
   reaches and fading over as much again.
 
   Two bands, and they are scoped differently on purpose. **The foot fades
-  everywhere** — the bar is on every device — and lives on `.edges` itself.
-  **The top fades only under `@media (pointer: coarse)`**, as `.edges::before`,
-  because only a phone puts a clock up there. Written that way round so the
-  gradient every device wants isn't duplicated inside a media query.
+  everywhere** — the bar is on every device — as `.edges::after`. **The top
+  fades only under `@media (pointer: coarse)`**, as `.edges::before`, because
+  only a phone puts a clock up there. Written that way round so the gradient
+  every device wants isn't duplicated inside a media query. Both are
+  pseudo-elements rather than one being a background on `.edges`, so each can
+  be faded on its own — see below.
+
+  **Each band steps aside for the clear-hold water**, via `--fade-top` and
+  `--fade-bot`, which `stepAside()` writes every frame of the flood. The bands
+  are opaque `--bg` and the water is about a quarter opacity, so a band left
+  standing under the tide reads as a dead block rather than as water: the flood
+  came out framed, a slab across the top of the screen and another at the foot,
+  with the wave crest vanishing behind the top one. A band's whole job is
+  keeping *writing* out from under the chrome, and once the water is over it
+  there is no writing left to keep out.
+
+  The ramp is measured from the band's own near edge and eased over the band's
+  own height, so it lands right at any screen size — nothing in it knows how
+  tall the phone is except through where the water actually is. Getting this
+  off by one band-height is easy and nearly invisible: fade on `surface /
+  topBand` instead of `(surface - topBand) / topBand` and the top band only
+  clears when the surface passes the top of the *screen*, which is the same
+  instant the hold fires. It looks fixed at the extremes and is still ~30 %
+  opaque through the whole high tide. Sample mid-rise, around `p ≈ 0.8`, or the
+  bug hides. `stop()` removes both properties so the bands come back whole.
 
   Its **place in `index.html` is its layering** — after `</main>`, before the
   flood canvas and the bar. Nothing in the sheet sets a `z-index`, so paint
@@ -236,7 +272,11 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
   `none` on a fine pointer), `pointer-events: none`, and that toggling the
   layer moves no line's `offsetTop`. Chromium reports every
   `env(safe-area-inset-*)` as `0`, so for a picture worth judging, inject a
-  notch-sized inset first.
+  notch-sized inset first — 59 px top and 34 px bottom are the numbers
+  `probe.html` read off a real iPhone. Without them the top band is a few
+  pixels tall and the framing is invisible, and so is its fix. Scroll the room
+  before flooding, too: with the page at the top there is no writing under the
+  band to be hidden, and both builds look identical.
 
 - Export picks its extension from the page: `.fountain` for a script,
   `.md` for a page that used a mark, `.txt` for one that didn't

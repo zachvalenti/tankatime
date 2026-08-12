@@ -5,7 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Tanka Time</title>
 <meta name="description" content="A quiet room for tanka — syllables counted line by line.">
-<!-- theme-color tints the browser chrome; app.js updates it per theme -->
+<!-- theme-color tints the browser chrome; app.js updates it per theme.
+     The manifest below deliberately declares no theme_color of its own:
+     a manifest is fetched after the document parses, and once Safari has
+     one it stops listening to this tag — so the chrome would take the
+     colour the app happened to load on and hold it until a reload. One
+     source, and it is this one. -->
 <meta name="theme-color" content="#0a0c0a">
 <!-- the manifest + icons make the page installable as an app (PWA) -->
 <link rel="manifest" href="manifest.webmanifest">
