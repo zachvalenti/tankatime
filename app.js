@@ -1411,12 +1411,32 @@ clearBtn.addEventListener('blur', cancelHold);
  * a line lands, a button lighting under the pointer — and the theme
  * simply arrives all at once, the way it looks like it should.
  */
+/* A browser that tints its own chrome to match the page reads
+ * theme-color — and Safari reads the *element*, not the attribute on it.
+ * Writing a new .content in place is a change nothing notices: the
+ * address bar keeps whatever colour it had when the page loaded, so
+ * switching from dusk to the green room leaves a purple bar sitting
+ * under a black page, and a reload doesn't shift it either.
+ *
+ * Replacing the element outright is the one mutation every engine sees.
+ * It costs a node per theme change, which is three nodes a session at
+ * the outside.
+ */
+function setThemeColor(hex) {
+  const meta = document.createElement('meta');
+  meta.setAttribute('name', 'theme-color');
+  meta.setAttribute('content', hex);
+  const old = document.querySelector('meta[name="theme-color"]');
+  if (old) old.replaceWith(meta);
+  else document.head.appendChild(meta);
+}
+
 function applyTheme(name) {
   const root = document.documentElement;
   root.classList.add('swapping');
   if (name === 'room') delete root.dataset.theme;
   else root.dataset.theme = name;
-  document.querySelector('meta[name="theme-color"]').content = THEMES[name];
+  setThemeColor(THEMES[name]);
   try { localStorage.setItem(THEME_KEY, name); } catch (_) {}
   // two frames: one for the new palette to paint, one to be sure it has
   requestAnimationFrame(() => requestAnimationFrame(() =>
