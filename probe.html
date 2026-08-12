@@ -18,7 +18,13 @@
   html { background: #101410; }
   html, body { height: 100%; color: #9be9a8;
                font: 14px/1.5 ui-monospace, Menlo, monospace; }
-  body { padding: env(safe-area-inset-top) 1rem env(safe-area-inset-bottom); }
+  /* The app locks the document and scrolls an inner room instead. So does
+     this, under the same toggle — otherwise "lock scrolling" just clips
+     the page and puts the buttons out of reach, which is not the thing
+     being tested. */
+  .room { padding: env(safe-area-inset-top) 1rem env(safe-area-inset-bottom); }
+  html.locked .room { position: fixed; inset: 0; overflow-y: auto;
+                      overscroll-behavior-y: none; }
   h1 { font-size: 14px; font-weight: 700; margin: 1rem 0 .5rem; }
   table { border-collapse: collapse; width: 100%; }
   td { padding: .15rem 0; vertical-align: top; }
@@ -32,7 +38,6 @@
   button.on { border-color: #4ade80; color: #4ade80; }
   .tall { height: 260vh; }              /* something for the document to scroll */
   html.locked, html.locked body { height: 100%; overflow: hidden; }
-  html.locked .tall { display: none; }
   /* the app's faded edges: one fixed layer over the whole viewport. If
      Safari is sampling pixels rather than reading the meta, this is the
      thing standing in front of what it would sample. */
@@ -64,14 +69,11 @@ try { Object.assign(window.TC, JSON.parse(localStorage.tcProbe || '{}')); } catc
 <body>
 <div class="veil"></div>
 <div class="top"></div><div class="bot"></div>
-<h1>what this phone reports</h1>
-<table id="out"></table>
-<input id="k" placeholder="tap here to raise the keyboard">
+<div class="room">
 
 <h1>does the browser follow the page colour?</h1>
 <p style="color:#3d5c46">Pick how the colour is announced, set the conditions,
-then cycle and watch Safari's own top and bottom bars. Reload re-reads
-everything from scratch, which is the case that is known to work.</p>
+then cycle and watch Safari's own top and bottom bars.</p>
 <div>
   <button id="mut" class="on">rewrite content</button>
   <button id="rep">replace element</button>
@@ -86,7 +88,12 @@ everything from scratch, which is the case that is known to work.</p>
   <button id="reload">reload</button>
 </div>
 <table id="tc"></table>
+
+<h1>what this phone reports</h1>
+<table id="out"></table>
+<input id="k" placeholder="tap here to raise the keyboard">
 <div class="tall"></div>
+</div>
 <script>
 const rows = [
   ['screen', () => `${screen.width} x ${screen.height} css px`],
