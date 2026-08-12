@@ -46,7 +46,12 @@ const rows = [
   ['safe-area bottom', () => px('--sa-bot')],
   ['half of bottom', () => px('--sa-half')],
   ['--foot would be', () => px('--sa-foot')],
-  ['standalone?', () => matchMedia('(display-mode: standalone)').matches ? 'yes' : 'no'],
+  // navigator.standalone is the one iOS answers honestly: a page added to
+  // the home screen with the apple- meta tags runs full-screen without
+  // necessarily matching the display-mode query, which had this reporting
+  // "no" from inside the installed app and sent a diagnosis the wrong way
+  ['standalone?', () => (navigator.standalone ? 'yes (navigator)' : 'no') +
+     (matchMedia('(display-mode: standalone)').matches ? ' + display-mode' : '')],
   ['pointer coarse?', () => matchMedia('(pointer: coarse)').matches ? 'yes' : 'no'],
 ];
 // read the env() values by letting the browser compute them for us
