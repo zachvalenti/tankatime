@@ -48,6 +48,12 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
   must return `haiku: false` when `/fountain` is also present, **in either
   order**, because a script has no syllable form for the shorter one to shorten.
   Check a plain tanka page in the same run: the targets are shared code.
+- **theme-color must be a *new element*, not a rewritten attribute.** Safari
+  tints its own toolbar from it and reads the element; setting `.content` in
+  place changes nothing it notices, so switching dusk → room leaves a purple
+  bar under a black page, and a reload doesn't clear it either. `setThemeColor()`
+  replaces the node. Assert a distinct element per change, exactly one in
+  `<head>` at a time, and that its colour matches the computed page background.
 - Clear hold: early release cancels and keeps text; 3 s hold clears.
 - Reload after a 500 ms pause to check the debounced localStorage save.
 - Markdown: `# ` heading (blank gutter, resets the 5-7-5-7-7 targets below
