@@ -7,12 +7,16 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#101410">
 <style>
   /* Deliberately plain. This page exists to answer one question — what
      does this phone actually report — and anything decorative here would
      be one more thing that could be lying. */
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  html, body { height: 100%; background: #101410; color: #9be9a8;
+  /* background lives on html alone, so the restore script in <head> can
+     set it before the first paint — body doesn't exist yet up there */
+  html { background: #101410; }
+  html, body { height: 100%; color: #9be9a8;
                font: 14px/1.5 ui-monospace, Menlo, monospace; }
   body { padding: env(safe-area-inset-top) 1rem env(safe-area-inset-bottom); }
   h1 { font-size: 14px; font-weight: 700; margin: 1rem 0 .5rem; }
@@ -23,16 +27,66 @@
   input { width: 100%; margin-top: 1rem; padding: .6rem; font: inherit;
           background: #0a0c0a; color: inherit; border: 1px solid #3d5c46; }
   /* the two bands the app draws, so their real height is visible here */
+  button { font: inherit; padding: .55rem .5rem; margin: .25rem .25rem 0 0;
+           background: #0a0c0a; color: inherit; border: 1px solid #3d5c46; }
+  button.on { border-color: #4ade80; color: #4ade80; }
+  .tall { height: 260vh; }              /* something for the document to scroll */
+  html.locked, html.locked body { height: 100%; overflow: hidden; }
+  html.locked .tall { display: none; }
+  /* the app's faded edges: one fixed layer over the whole viewport. If
+     Safari is sampling pixels rather than reading the meta, this is the
+     thing standing in front of what it would sample. */
+  .veil { position: fixed; inset: 0; pointer-events: none; display: none; }
+  html.veiled .veil { display: block; }
   .top, .bot { position: fixed; left: 0; right: 0; background: #e0525233; }
   .top { top: 0; height: calc(env(safe-area-inset-top) + 3.4rem); }
   .bot { bottom: 0; height: calc(.5rem + env(safe-area-inset-bottom) * .5 + 3.4rem); }
 </style>
+<script>
+/* The state of the experiment survives a reload, and is restored here in
+   <head> so it is in place before the first paint. That matters: "reload
+   and the tint is right" is the one case known to work, and it is only a
+   fair comparison if the reload starts on the colour you cycled to
+   rather than resetting to the one written in the file. */
+window.TC = { colours: ['#101410', '#f6f1e3', '#171321'], at: 0,
+              how: 'mut', locked: false, veiled: false };
+try { Object.assign(window.TC, JSON.parse(localStorage.tcProbe || '{}')); } catch (e) {}
+(function () {
+  const hex = TC.colours[TC.at];
+  document.documentElement.style.background = hex;
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (TC.how === 'non') meta.remove(); else meta.content = hex;
+  if (TC.locked) document.documentElement.classList.add('locked');
+  if (TC.veiled) document.documentElement.classList.add('veiled');
+})();
+</script>
 </head>
 <body>
+<div class="veil"></div>
 <div class="top"></div><div class="bot"></div>
 <h1>what this phone reports</h1>
 <table id="out"></table>
 <input id="k" placeholder="tap here to raise the keyboard">
+
+<h1>does the browser follow the page colour?</h1>
+<p style="color:#3d5c46">Pick how the colour is announced, set the conditions,
+then cycle and watch Safari's own top and bottom bars. Reload re-reads
+everything from scratch, which is the case that is known to work.</p>
+<div>
+  <button id="mut" class="on">rewrite content</button>
+  <button id="rep">replace element</button>
+  <button id="non">no meta at all</button>
+</div>
+<div>
+  <button id="lock">lock scrolling</button>
+  <button id="veil">fixed full-screen layer</button>
+</div>
+<div>
+  <button id="go">cycle the colour</button>
+  <button id="reload">reload</button>
+</div>
+<table id="tc"></table>
+<div class="tall"></div>
 <script>
 const rows = [
   ['screen', () => `${screen.width} x ${screen.height} css px`],
@@ -75,6 +129,94 @@ function draw() {
                        return `<tr><td>${k}</td><td><b>${v}</b></td></tr>`; })
     .join('');
 }
+
+/* The experiment.
+ *
+ * Safari tints its top and bottom bars to match the page. The app cycles
+ * themes without a reload and the tint stopped following — it holds
+ * whatever colour the page loaded on. Rewriting the meta's content was
+ * how the app had always done it and it used to work; replacing the
+ * element outright didn't help either. So the variable is probably not
+ * how the colour is *announced* but what else changed around it, and
+ * this page varies all of it independently:
+ *
+ *   how       rewrite the meta's content · replace the element · no meta
+ *             at all, leaving Safari to sample the page's own colour
+ *   locked    the document cannot scroll, which is what stopped the
+ *             toolbar wandering under the keyboard and is the app's
+ *             single biggest structural change
+ *   veiled    a fixed layer across the whole viewport, which is how the
+ *             faded edges are drawn — and which stands exactly where
+ *             anything sampling pixels would be looking
+ *
+ * Reload is the control: it is known to pick up the right colour.
+ */
+const root = document.documentElement;
+function tcMeta() { return document.querySelector('meta[name="theme-color"]'); }
+function save() { try { localStorage.tcProbe = JSON.stringify(TC); } catch (e) {} }
+
+function paint(hex) {
+  root.style.background = hex;
+  // the veil carries the colour too, the way the app's edges fade to --bg
+  document.querySelector('.veil').style.background =
+    `linear-gradient(${hex} 0, transparent 12%, transparent 88%, ${hex} 100%)`;
+}
+
+function announce(hex) {
+  const meta = tcMeta();
+  if (TC.how === 'non') { if (meta) meta.remove(); return; }
+  if (TC.how === 'rep' || !meta) {
+    const m = document.createElement('meta');
+    m.setAttribute('name', 'theme-color');
+    m.setAttribute('content', hex);
+    if (meta) meta.replaceWith(m); else document.head.appendChild(m);
+    return;
+  }
+  meta.content = hex;
+}
+
+function cycle() {
+  TC.at = (TC.at + 1) % TC.colours.length;
+  const hex = TC.colours[TC.at];
+  paint(hex);
+  announce(hex);
+  save();
+  drawTc();
+}
+
+const HOW = { mut: 'rewrite content', rep: 'replace element', non: 'no meta at all' };
+function drawTc() {
+  for (const k of Object.keys(HOW))
+    document.getElementById(k).classList.toggle('on', TC.how === k);
+  document.getElementById('lock').classList.toggle('on', TC.locked);
+  document.getElementById('veil').classList.toggle('on', TC.veiled);
+  const meta = tcMeta();
+  document.getElementById('tc').innerHTML =
+    `<tr><td>page colour</td><td><b>${TC.colours[TC.at]}</b></td></tr>` +
+    `<tr><td>meta says</td><td><b>${meta ? meta.content : '(no meta)'}</b></td></tr>` +
+    `<tr><td>announced by</td><td><b>${HOW[TC.how]}</b></td></tr>` +
+    `<tr><td>document scrolls</td><td><b>${TC.locked ? 'no (like the app)' : 'yes'}</b></td></tr>` +
+    `<tr><td>fixed layer over it</td><td><b>${TC.veiled ? 'yes (like the app)' : 'no'}</b></td></tr>`;
+}
+
+for (const k of Object.keys(HOW))
+  document.getElementById(k).onclick = () => {
+    TC.how = k;
+    announce(TC.colours[TC.at]);
+    save(); drawTc();
+  };
+for (const [id, key, cls] of [['lock', 'locked', 'locked'], ['veil', 'veiled', 'veiled']])
+  document.getElementById(id).onclick = () => {
+    TC[key] = !TC[key];
+    root.classList.toggle(cls, TC[key]);
+    save(); drawTc();
+  };
+document.getElementById('go').onclick = cycle;
+document.getElementById('reload').onclick = () => { save(); location.reload(); };
+
+paint(TC.colours[TC.at]);
+drawTc();
+
 draw();
 addEventListener('resize', draw);
 visualViewport?.addEventListener('resize', draw);
