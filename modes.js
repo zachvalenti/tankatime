@@ -11,6 +11,10 @@
  *             just the number, for a syllabic ear working outside 31.
  *   /simple   every word is held against a thousand-word list, and the
  *             ones that aren't on it are marked.
+ *   /haiku    the older, shorter form: three slots of 5-7-5 instead of
+ *             five of 5-7-5-7-7. The same room in every other respect —
+ *             a title still stands outside it, and a blank line still
+ *             starts the next poem on the same terms.
  *   /fountain the room becomes a screenplay: Fountain notation instead
  *             of Markdown, and no syllables at all — a count of beats in
  *             a line of dialogue would be a number about nothing. The
@@ -27,7 +31,7 @@
  * the top of the page and reports what it was asked for.
  */
 
-const MODE_WORDS = ['free', 'simple', 'fountain'];
+const MODE_WORDS = ['free', 'simple', 'fountain', 'haiku'];
 const MODE_WORD = new RegExp('^/(' + MODE_WORDS.join('|') + ')$');
 
 // the mode words on a line, or null if the line is a line of writing —
@@ -44,8 +48,8 @@ function modeWords(text) {
   return out;
 }
 
-// → { free, simple, fountain, lines }, lines being how many the modes
-// occupy at the top, which is also how many the export drops
+// → { free, simple, fountain, haiku, lines }, lines being how many the
+// modes occupy at the top, which is also how many the export drops
 function readModes(src) {
   const on = new Set();
   let n = 0;
@@ -55,8 +59,17 @@ function readModes(src) {
     for (const w of words) on.add(w);
     n++;
   }
+  /* Every pair of these can be asked for together except one. A script
+   * has no syllable form to hold it to — /fountain turns the counting
+   * off entirely — so there is no shorter form for /haiku to ask for,
+   * and asking for both is a contradiction rather than a combination.
+   * Fountain wins, and haiku comes back off rather than merely inert:
+   * a caller reading this should never have to know which of the two
+   * takes precedence, only what the room is.
+   */
+  const fountain = on.has('fountain');
   return { free: on.has('free'), simple: on.has('simple'),
-           fountain: on.has('fountain'), lines: n };
+           fountain, haiku: on.has('haiku') && !fountain, lines: n };
 }
 
 // Node (a test run, or a future build tool) sees module; the browser

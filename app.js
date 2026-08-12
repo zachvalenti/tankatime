@@ -29,8 +29,12 @@ const clearBtn  = document.getElementById('clear');
 const flood     = document.getElementById('flood');
 const edges     = document.getElementById('edges');
 
-// the tanka form: five lines of 5-7-5-7-7 syllables
+// the tanka form: five lines of 5-7-5-7-7 syllables — and the older,
+// shorter one the first three of them came from, which /haiku asks for.
+// Everything else about the room is the same either way: the slots are
+// just filled sooner.
 const TARGETS = [5, 7, 5, 7, 7];
+const HAIKU_TARGETS = [5, 7, 5];
 const STORE_KEY = 'tanka-time-doc';
 const THEME_KEY = 'tanka-time-theme';
 const TOTAL_KEY = 'tanka-time-total';
@@ -579,6 +583,10 @@ function measure(rows, src, modes, kinds) {
   // about the whole document rather than about any line in it — worked
   // out in one pass here off the kinds this repaint already has
   const pages = modes.fountain ? ftnPages(src, modes.lines, kinds) : 0;
+  // which form the page is holding itself to. Only the length differs —
+  // every rule below counts slots, not lines, so three of them behave
+  // exactly as five do and nothing else here has to know the difference.
+  const targets = modes.haiku ? HAIKU_TARGETS : TARGETS;
 
   for (let i = 0; i < rows.length; i++) {
     // whatever the first line asked for is scaffolding, not poem: no
@@ -603,13 +611,12 @@ function measure(rows, src, modes, kinds) {
     }
     if (blank[i]) {
       // two blank lines in a row, a blank alongside a title, or one
-      // once the five slots are filled — each starts a new tanka; a
-      // lone blank inside an unfinished tanka keeps its slot and
-      // counts as 0
+      // once the slots are filled — each starts a new poem; a lone
+      // blank inside an unfinished one keeps its slot and counts as 0
       // in free mode there are no slots to hold, so a blank line is
       // only ever a gap between one thought and the next
       if (modes.free || blank[i - 1] || blank[i + 1] || head[i - 1] ||
-          head[i + 1] || pos >= TARGETS.length) { pos = 0; continue; }
+          head[i + 1] || pos >= targets.length) { pos = 0; continue; }
       const span = document.createElement('span');
       span.textContent = '0';
       span.style.top = rows[i].offsetTop + 'px';
@@ -626,7 +633,7 @@ function measure(rows, src, modes, kinds) {
     // free mode counts without judging: no target means no green and
     // no amber, just the number, for an ear working outside 31
     const target = modes.free ? null
-      : pos < TARGETS.length ? TARGETS[pos] : null;
+      : pos < targets.length ? targets[pos] : null;
     const span = document.createElement('span');
     span.textContent = n;
     span.style.top = rows[i].offsetTop + 'px';
