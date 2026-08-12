@@ -27,7 +27,6 @@ const exportBtn = document.getElementById('export');
 const themeBtn  = document.getElementById('theme');
 const clearBtn  = document.getElementById('clear');
 const flood     = document.getElementById('flood');
-const edges     = document.getElementById('edges');
 
 // the tanka form: five lines of 5-7-5-7-7 syllables — and the older,
 // shorter one the first three of them came from, which /haiku asks for.
@@ -1266,46 +1265,8 @@ const water = (() => {
   function fit() {
     const dpr = Math.min(devicePixelRatio || 1, 2);
     const w = Math.round(innerWidth * dpr), h = Math.round(innerHeight * dpr);
-    if (flood.width !== w || flood.height !== h) {
-      flood.width = w; flood.height = h;
-      bands();
-    }
+    if (flood.width !== w || flood.height !== h) { flood.width = w; flood.height = h; }
     return dpr;
-  }
-
-  /* How tall the two faded bands are, in CSS pixels.
-   *
-   * Measured rather than computed: their heights are written in CSS out
-   * of the phone's safe-area insets, which only CSS can see. The top band
-   * exists on coarse pointers alone, and on a mouse there is no ::before
-   * at all — getComputedStyle answers 'auto' for it, which parses to NaN
-   * and lands at zero, meaning "no band", which is exactly right. */
-  let topBand = 0, botBand = 0;
-  function bands() {
-    const read = which => parseFloat(getComputedStyle(edges, which).height) || 0;
-    topBand = read('::before');
-    botBand = read('::after');
-  }
-
-  const clamp01 = n => (n < 0 ? 0 : n > 1 ? 1 : n);
-
-  /* Hand each band its share of the tide.
-   *
-   * A band is at full strength while the water is still a band's height
-   * away from it, and gone by the moment the surface arrives at its near
-   * edge — the foot's near edge being the top of that band, the top
-   * band's being its bottom. Each therefore fades over the last stretch
-   * of water before the water would have covered it, and is out of the
-   * way before it could read as a frame rather than as tide.
-   *
-   * Measuring from the band's own edge and easing over the band's own
-   * height is what makes this hold at any size: nothing here knows how
-   * tall the screen is except through where the water actually is. */
-  function stepAside(surface) {
-    edges.style.setProperty('--fade-top',
-      topBand ? clamp01((surface - topBand) / topBand) : 1);
-    edges.style.setProperty('--fade-bot',
-      botBand ? clamp01((surface - (innerHeight - botBand)) / botBand) : 1);
   }
 
   // one animation frame: advance the tide, redraw all three layers
@@ -1330,7 +1291,6 @@ const water = (() => {
     const base = (h + 70 * dpr) - (h + 170 * dpr) * p;
     const swell = 1 + fury * 1.5;
     const rush = 1 + fury * 3;
-    stepAside(base / dpr); // the bands get out of the water's way
 
     ctx.clearRect(0, 0, w, h);
     ctx.fillStyle = tide;
@@ -1363,10 +1323,6 @@ const water = (() => {
     mode = 'idle';
     p = 0;
     ctx.clearRect(0, 0, flood.width, flood.height);
-    // dry again: the bands come back whole rather than wherever the
-    // last frame left them
-    edges.style.removeProperty('--fade-top');
-    edges.style.removeProperty('--fade-bot');
   }
 
   return {
@@ -1532,24 +1488,25 @@ addEventListener('resize', () => {
  * could not stop this: with a keyboard up, iOS slides the *visual*
  * viewport — the part you can actually see — around inside the layout
  * viewport to keep the caret above the keys. Everything laid out against
- * the layout viewport slides with it, the faded edges included, and the
- * top band ends up above the screen with the writing running clear under
- * the clock and the battery.
+ * the layout viewport slides with it, the room's mask included, and the
+ * top of the fade ends up above the screen with the writing running
+ * clear under the clock and the battery.
  *
  * There is no CSS for "the part you can see". So the fade is told, and
- * only the fade: where the visible box starts, and how tall it is. The
- * toolbar is deliberately left alone — iOS lifts it above the keyboard
- * by itself, which is the behaviour we want, and two earlier attempts to
- * improve on that both made it worse.
+ * only the fade: where the visible box starts. The toolbar is
+ * deliberately left alone — iOS lifts it above the keyboard by itself,
+ * which is the behaviour we want, and two earlier attempts to improve on
+ * that both made it worse.
  *
  * This is the third pass at keyboard-aware code and the first that
  * should hold, because the ground is different now: the document cannot
  * scroll, so these events fire when the keyboard opens or the caret
  * moves, not continuously under a finger. Nothing here can move a
- * control or shift the writing — at worst a gradient arrives a frame
- * late, which is a great deal cheaper than a toolbar that jumps.
+ * control or shift the writing — at worst a fade arrives a frame late,
+ * which is a great deal cheaper than a toolbar that jumps.
  */
-/* → how far the top band has to come down to sit on the visible top.
+/* → how far the top of the fade has to come down to sit on the visible
+ * top.
  *
  * A number in, a number out, no DOM — the part of this that can be
  * checked without a phone in your hand.
@@ -1563,12 +1520,13 @@ const view = window.visualViewport;
 function placeEdges() {
   if (!view) return;
   const top = edgeTop(view.offsetTop);
-  // the top band only. Resizing the whole layer to the visible box was
-  // tried and was worse: it drags the fade at the foot up above the
-  // keyboard, where instead of hiding the edge of the writing it lays a
-  // washed-out stripe across the middle of it. Down there the keyboard is
-  // the edge, and a fade behind the keyboard is exactly right.
-  edges.style.setProperty('--view-top', top ? top + 'px' : '0px');
+  // Written on :root, and read only by the mask's two top stops (see the
+  // (pointer: coarse) block in style.css). The foot deliberately ignores
+  // it: lifting that fade above the keys would lay a washed-out stripe
+  // across the middle of the writing instead of hiding its edge, and
+  // behind the keyboard is exactly where a fade at the foot belongs.
+  document.documentElement.style.setProperty(
+    '--view-top', top ? top + 'px' : '0px');
 }
 
 if (view) {
