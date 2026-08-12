@@ -24,14 +24,22 @@
      the fade behind it starts from — one value, because the two have to
      agree or the bar floats in the middle of its own gradient.
 
-     Half the safe-area inset, not all of it. The whole inset is the
-     conservative reading of "keep clear of the home indicator", and on a
-     phone it left the count sitting fifty-odd pixels up with nothing
-     underneath it, which looks less like margin than like a mistake.
-     Half still clears the indicator and its gesture, and the bar reads
-     as belonging to the bottom edge again. Zero on anything without an
-     inset, where it comes out at the .5rem. */
-  --foot: calc(.5rem + env(safe-area-inset-bottom) * .5);
+     A third of the safe-area inset, not all of it. The whole inset is
+     the conservative reading of "keep clear of the home indicator", and
+     on a phone it left the count sitting high with nothing underneath
+     it, which looks less like margin than like a mistake.
+
+     This is close to the floor, and the floor is worth writing down.
+     Measured on a 390x844 phone reporting a 34px bottom inset: the
+     buttons' own tap padding puts their glyphs 11px above whatever this
+     value is, and the box below them reaches nearly to it. At .35 the
+     text sits 32px up and the boxes 21px, which clears the indicator
+     itself. Much less and the buttons are inside the strip iOS watches
+     for the home gesture, where a first tap gets eaten often enough to
+     be infuriating. Space that looks spare here is mostly tap target.
+
+     Zero on anything without an inset, where it comes out at the .5rem. */
+  --foot: calc(.5rem + env(safe-area-inset-bottom) * .35);
   color-scheme: dark; /* tells the browser to render UA widgets dark */
 }
 
