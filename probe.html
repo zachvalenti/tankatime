@@ -54,7 +54,7 @@
    fair comparison if the reload starts on the colour you cycled to
    rather than resetting to the one written in the file. */
 window.TC = { colours: ['#101410', '#f6f1e3', '#171321'], at: 0,
-              how: 'mut', locked: false, veiled: false };
+              how: 'mut', locked: false, veiled: false, manifest: false };
 try { Object.assign(window.TC, JSON.parse(localStorage.tcProbe || '{}')); } catch (e) {}
 (function () {
   const hex = TC.colours[TC.at];
@@ -63,6 +63,17 @@ try { Object.assign(window.TC, JSON.parse(localStorage.tcProbe || '{}')); } catc
   if (TC.how === 'non') meta.remove(); else meta.content = hex;
   if (TC.locked) document.documentElement.classList.add('locked');
   if (TC.veiled) document.documentElement.classList.add('veiled');
+  /* The app links a web app manifest, and that manifest declares a
+     theme_color of its own. A manifest is only ever read at load, so this
+     one is linked from here rather than offered as a live toggle. Its
+     theme_color is a red that appears in none of the cycle colours, so
+     there is no mistaking which source the browser is listening to. */
+  if (TC.manifest) {
+    const link = document.createElement('link');
+    link.rel = 'manifest';
+    link.href = 'probe.webmanifest';
+    document.head.appendChild(link);
+  }
 })();
 </script>
 </head>
@@ -82,6 +93,9 @@ then cycle and watch Safari's own top and bottom bars.</p>
 <div>
   <button id="lock">lock scrolling</button>
   <button id="veil">fixed full-screen layer</button>
+</div>
+<div>
+  <button id="man">manifest, theme_color red (reloads)</button>
 </div>
 <div>
   <button id="go">cycle the colour</button>
@@ -197,13 +211,16 @@ function drawTc() {
     document.getElementById(k).classList.toggle('on', TC.how === k);
   document.getElementById('lock').classList.toggle('on', TC.locked);
   document.getElementById('veil').classList.toggle('on', TC.veiled);
+  document.getElementById('man').classList.toggle('on', TC.manifest);
   const meta = tcMeta();
   document.getElementById('tc').innerHTML =
     `<tr><td>page colour</td><td><b>${TC.colours[TC.at]}</b></td></tr>` +
     `<tr><td>meta says</td><td><b>${meta ? meta.content : '(no meta)'}</b></td></tr>` +
     `<tr><td>announced by</td><td><b>${HOW[TC.how]}</b></td></tr>` +
     `<tr><td>document scrolls</td><td><b>${TC.locked ? 'no (like the app)' : 'yes'}</b></td></tr>` +
-    `<tr><td>fixed layer over it</td><td><b>${TC.veiled ? 'yes (like the app)' : 'no'}</b></td></tr>`;
+    `<tr><td>fixed layer over it</td><td><b>${TC.veiled ? 'yes (like the app)' : 'no'}</b></td></tr>` +
+    `<tr><td>manifest linked</td><td><b>${
+      TC.manifest ? 'yes, theme_color #e05252' : 'no'}</b></td></tr>`;
 }
 
 for (const k of Object.keys(HOW))
@@ -218,6 +235,12 @@ for (const [id, key, cls] of [['lock', 'locked', 'locked'], ['veil', 'veiled', '
     root.classList.toggle(cls, TC[key]);
     save(); drawTc();
   };
+// a manifest is only read at load, so this one has to take the page with it
+document.getElementById('man').onclick = () => {
+  TC.manifest = !TC.manifest;
+  save();
+  location.reload();
+};
 document.getElementById('go').onclick = cycle;
 document.getElementById('reload').onclick = () => { save(); location.reload(); };
 
