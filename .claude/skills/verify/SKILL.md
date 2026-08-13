@@ -48,6 +48,18 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
   must return `haiku: false` when `/fountain` is also present, **in either
   order**, because a script has no syllable form for the shorter one to shorten.
   Check a plain tanka page in the same run: the targets are shared code.
+- **Bump `PROBE_BUILD` in `probe.html` with every `CACHE` bump.** The probe
+  reports which release is on the server against which one this device has
+  actually installed, so that "did my merge go live?" is a readout rather than
+  a guess — most merges change nothing you could spot from across the room. The
+  two can legitimately differ for a minute while a new worker downloads; a
+  stamp that never matches means someone forgot to bump it. A test asserts the
+  two agree, so forgetting fails the suite rather than quietly misleading.
+
+  Worth knowing: `sw.js` caches **every** GET it serves, not only the files it
+  precaches, so `probe.html` is itself held until the next `CACHE` bump. It is
+  not a live-editable page. If its stamp is behind the release, the rest of
+  what it says may be stale too.
 - **The manifest must declare no `theme_color`.** Safari tints its own toolbar
   from `theme-color`, and `manifest.webmanifest` deliberately leaves the field
   out: a manifest is fetched *after* the document parses, and once Safari has
