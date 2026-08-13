@@ -40,6 +40,20 @@
 
      Zero on anything without an inset, where it comes out at the .5rem. */
   --foot: calc(.5rem + env(safe-area-inset-bottom) * .35);
+
+  /* Where the writing stops and where it is whole again, at each edge —
+     the four stops of .room's mask. Hidden as far as the chrome actually
+     reaches, then fading in over about as much again, so a line under the
+     clock is gone rather than clipped at a rule.
+
+     The foot is here because the bar is on every device. The top is zero
+     here and given a height only under (pointer: coarse) below: a desktop
+     has nothing across the top of the window to hide from. */
+  --hide-top: 0px;
+  --show-top: 0px;
+  --hide-bot: calc(var(--foot) + 1.9rem);
+  --show-bot: calc(var(--foot) + 3.4rem);
+
   color-scheme: dark; /* tells the browser to render UA widgets dark */
 }
 
@@ -100,6 +114,40 @@ html {
   overflow-y: auto;
   /* iOS standalone: a bottom-edge rubber-band can wedge the scroll */
   overscroll-behavior-y: none;
+
+  /* The writing fades out at the two edges the app doesn't own.
+   *
+   * At the foot sits the toolbar, on every device; across the top of a
+   * phone sit the clock, the signal and the battery, and with
+   * viewport-fit=cover the writing runs underneath them. Neither is a
+   * place a line should be legible.
+   *
+   * This is a mask on the room rather than a scrim over it, and the
+   * difference is the whole point. A scrim is an opaque layer between the
+   * writing and everything painted after it — and what is painted after
+   * it is the clear-hold water, a wash of about a quarter opacity. Water
+   * over writing is water; water over an opaque band is a dead slab, with
+   * the wave crest cut off flat where the band starts. That version came
+   * out framed, top and foot, and needed the bands driven out of the
+   * water's way frame by frame from JavaScript to look right.
+   *
+   * Masking removes the writing instead of covering it. Nothing opaque is
+   * left anywhere, so nothing can occlude anything: the water flows over
+   * the whole screen at every height, and the fade costs one declaration
+   * and no script at all.
+   *
+   * The mask is positioned against the room's own box, which is the
+   * viewport — the writing scrolls underneath it and it stays put. The
+   * toolbar is outside the room and so is never touched by it, which is
+   * what keeps it readable while the writing behind it fades. */
+  --edge-mask: linear-gradient(to bottom,
+    transparent 0,
+    transparent var(--hide-top),
+    #000 var(--show-top),
+    #000 calc(100% - var(--show-bot)),
+    transparent calc(100% - var(--hide-bot)));
+  -webkit-mask-image: var(--edge-mask);
+          mask-image: var(--edge-mask);
 }
 
 /* keep the room still while the context card is up — the card's own
@@ -121,7 +169,14 @@ body {
 /* Held still for the one frame a theme changes on — see applyTheme().
    Half the room can ease its colours and half of it cannot, and a
    gradient is in the half that cannot, so nothing eases and the palette
-   lands whole. */
+   lands whole.
+
+   The gradient this was written for is gone: the faded edges are a mask
+   now, which is pure alpha and carries no colour to arrive early. So
+   this is very likely inert, and could go — but the flash it fixed was
+   real and reported, and one frame without transitions costs nothing, so
+   it stays until someone has looked at a theme switch on a phone and
+   decided otherwise. */
 html.swapping, html.swapping * { transition: none !important; }
 
 ::selection { background: var(--sel); }
@@ -333,21 +388,6 @@ html.swapping, html.swapping * { transition: none !important; }
  * any earlier and the writing paints straight over it, which looks
  * exactly like the rule not working. After the poem, before the water
  * and the bar — over the writing, under the count. */
-.edges {
-  position: fixed;
-  /* top and height rather than inset, because app.js sets both when a
-     keyboard is up: the fade belongs to what can be *seen*, and that is
-     not the same box as the page while iOS is holding the caret in view */
-  top: 0; left: 0; right: 0;
-  height: 100%;
-  pointer-events: none;
-  /* solid as far as the bar itself reaches, then fading over as much
-     again — measured from --foot, so the band moves with the bar rather
-     than leaving it adrift in the middle of a gradient */
-  background: linear-gradient(to top,
-      var(--bg) calc(var(--foot) + 1.9rem), transparent)
-    bottom / 100% calc(var(--foot) + 3.4rem) no-repeat;
-}
 
 /* the bottom toolbar spans the viewport; env(safe-area-inset-*) pads
    past notches and home-bar indicators on phones */
@@ -521,24 +561,22 @@ html.swapping, html.swapping * { transition: none !important; }
 
   /* The other edge, which only a phone has: the clock, the signal bars
      and the battery sit across the top of the screen, and with
-     viewport-fit=cover the writing runs underneath them.
+     viewport-fit=cover the writing runs underneath them. Giving the top
+     two stops a height is the whole of it — the mask on .room is already
+     written, and on a desktop these are zero and it simply has no top
+     fade to draw.
 
-     A second band rather than a second layer on .edges, so the fade at
-     the foot — which every device wants, the bar being everywhere — stays
-     written once. Same idea, other direction. */
-  .edges::before {
-    content: "";
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    height: calc(env(safe-area-inset-top) + 3.4rem);
-    background: linear-gradient(to bottom,
-      var(--bg) calc(env(safe-area-inset-top) + 1rem), transparent);
-    /* This band alone follows the visible top — app.js sets --view-top
-       when a keyboard makes iOS slide the view. The band at the foot does
-       not move with it: down there the keyboard is the edge, and a fade
-       lifted above the keys puts a washed-out stripe across the middle of
-       the writing, which is worse than the problem it solves. */
-    transform: translateY(var(--view-top, 0px));
+     --view-top is what a keyboard costs. app.js sets it when iOS slides
+     the visible box up to keep the caret above the keys; without it the
+     top of the mask goes up off the screen with everything else laid out
+     against the layout viewport, and the writing runs clear under the
+     clock again. Only the top stops take it. The foot does not: down
+     there the keyboard *is* the edge, and a fade lifted above the keys
+     lays a washed-out stripe across the middle of the writing, which is
+     worse than the problem it solves. */
+  :root {
+    --hide-top: calc(env(safe-area-inset-top) + 1rem + var(--view-top, 0px));
+    --show-top: calc(env(safe-area-inset-top) + 3.4rem + var(--view-top, 0px));
   }
 
   /* There is no Tab key here, so the suggestion has to look like something

@@ -27,7 +27,6 @@ const exportBtn = document.getElementById('export');
 const themeBtn  = document.getElementById('theme');
 const clearBtn  = document.getElementById('clear');
 const flood     = document.getElementById('flood');
-const edges     = document.getElementById('edges');
 
 // the tanka form: five lines of 5-7-5-7-7 syllables — and the older,
 // shorter one the first three of them came from, which /haiku asks for.
@@ -1489,24 +1488,25 @@ addEventListener('resize', () => {
  * could not stop this: with a keyboard up, iOS slides the *visual*
  * viewport — the part you can actually see — around inside the layout
  * viewport to keep the caret above the keys. Everything laid out against
- * the layout viewport slides with it, the faded edges included, and the
- * top band ends up above the screen with the writing running clear under
- * the clock and the battery.
+ * the layout viewport slides with it, the room's mask included, and the
+ * top of the fade ends up above the screen with the writing running
+ * clear under the clock and the battery.
  *
  * There is no CSS for "the part you can see". So the fade is told, and
- * only the fade: where the visible box starts, and how tall it is. The
- * toolbar is deliberately left alone — iOS lifts it above the keyboard
- * by itself, which is the behaviour we want, and two earlier attempts to
- * improve on that both made it worse.
+ * only the fade: where the visible box starts. The toolbar is
+ * deliberately left alone — iOS lifts it above the keyboard by itself,
+ * which is the behaviour we want, and two earlier attempts to improve on
+ * that both made it worse.
  *
  * This is the third pass at keyboard-aware code and the first that
  * should hold, because the ground is different now: the document cannot
  * scroll, so these events fire when the keyboard opens or the caret
  * moves, not continuously under a finger. Nothing here can move a
- * control or shift the writing — at worst a gradient arrives a frame
- * late, which is a great deal cheaper than a toolbar that jumps.
+ * control or shift the writing — at worst a fade arrives a frame late,
+ * which is a great deal cheaper than a toolbar that jumps.
  */
-/* → how far the top band has to come down to sit on the visible top.
+/* → how far the top of the fade has to come down to sit on the visible
+ * top.
  *
  * A number in, a number out, no DOM — the part of this that can be
  * checked without a phone in your hand.
@@ -1520,12 +1520,13 @@ const view = window.visualViewport;
 function placeEdges() {
   if (!view) return;
   const top = edgeTop(view.offsetTop);
-  // the top band only. Resizing the whole layer to the visible box was
-  // tried and was worse: it drags the fade at the foot up above the
-  // keyboard, where instead of hiding the edge of the writing it lays a
-  // washed-out stripe across the middle of it. Down there the keyboard is
-  // the edge, and a fade behind the keyboard is exactly right.
-  edges.style.setProperty('--view-top', top ? top + 'px' : '0px');
+  // Written on :root, and read only by the mask's two top stops (see the
+  // (pointer: coarse) block in style.css). The foot deliberately ignores
+  // it: lifting that fade above the keys would lay a washed-out stripe
+  // across the middle of the writing instead of hiding its edge, and
+  // behind the keyboard is exactly where a fade at the foot belongs.
+  document.documentElement.style.setProperty(
+    '--view-top', top ? top + 'px' : '0px');
 }
 
 if (view) {

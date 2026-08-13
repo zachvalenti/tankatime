@@ -48,12 +48,39 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
   must return `haiku: false` when `/fountain` is also present, **in either
   order**, because a script has no syllable form for the shorter one to shorten.
   Check a plain tanka page in the same run: the targets are shared code.
-- **theme-color must be a *new element*, not a rewritten attribute.** Safari
-  tints its own toolbar from it and reads the element; setting `.content` in
-  place changes nothing it notices, so switching dusk → room leaves a purple
-  bar under a black page, and a reload doesn't clear it either. `setThemeColor()`
-  replaces the node. Assert a distinct element per change, exactly one in
-  `<head>` at a time, and that its colour matches the computed page background.
+- **Bump `PROBE_BUILD` in `probe.html` with every `CACHE` bump.** The probe
+  reports which release is on the server against which one this device has
+  actually installed, so that "did my merge go live?" is a readout rather than
+  a guess — most merges change nothing you could spot from across the room. The
+  two can legitimately differ for a minute while a new worker downloads; a
+  stamp that never matches means someone forgot to bump it. A test asserts the
+  two agree, so forgetting fails the suite rather than quietly misleading.
+
+  Worth knowing: `sw.js` caches **every** GET it serves, not only the files it
+  precaches, so `probe.html` is itself held until the next `CACHE` bump. It is
+  not a live-editable page. If its stamp is behind the release, the rest of
+  what it says may be stale too.
+- **The manifest must declare no `theme_color`.** Safari tints its own toolbar
+  from `theme-color`, and `manifest.webmanifest` deliberately leaves the field
+  out: a manifest is fetched *after* the document parses, and once Safari has
+  one it stops listening to the meta tag. The symptom is precise and worth
+  recognising, because it sends you looking in the wrong place — the chrome
+  takes whatever colour the app *loaded* on and holds it through every theme
+  switch, then updates on reload and sticks again. That reads exactly like "the
+  meta isn't being re-read", and it is not: the meta is fine.
+
+  Two dead ends, both walked, neither of them the cause. Rewriting `.content`
+  in place works in Safari — it is what the app did from its first commit.
+  Replacing the element outright also works, and `setThemeColor()` still does
+  that, harmlessly. Neither is the fix, so don't reach for either when this
+  recurs; check the manifest. Assert the meta's colour tracks the computed page
+  background across a theme switch, exactly one in `<head>`, and that
+  `manifest.webmanifest` has no `theme_color` key at all.
+
+  None of this is visible in Chromium, which does not tint anything. Reproduce
+  it on a phone with `probe.html`, whose experiment varies each candidate
+  independently and links a manifest whose `theme_color` is a red that appears
+  nowhere else, so the source being listened to is never in doubt.
 - Clear hold: early release cancels and keeps text; 3 s hold clears.
 - Reload after a 500 ms pause to check the debounced localStorage save.
 - Markdown: `# ` heading (blank gutter, resets the 5-7-5-7-7 targets below
@@ -167,38 +194,37 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
   leaves the layout viewport alone, then slides the visual one about to keep
   the caret in view — so anything `position: fixed` travels with it. The bar
   wandered for that reason, and once the faded edges were added they wandered
-  too. Pinning harder never works; the frame itself has to hold still, so
+  too (they were a fixed layer then; they are a mask on `.room` now). Pinning harder never works; the frame itself has to hold still, so
   `html, body { overflow: hidden }` and the writing scrolls inside `.room`.
 
   Assert all four: the document cannot scroll (`scrollY === 0`, `scrollHeight`
-  no greater than `clientHeight`), `.room` can, scrolling `.room` leaves
-  `.edges` and `.bar` bounding rects **unchanged**, and the writing underneath
+  no greater than `clientHeight`), `.room` can, scrolling `.room` leaves the
+  `.room` and `.bar` bounding rects **unchanged**, and the writing underneath
   them did move — otherwise the third assertion proves nothing. Note that
   `window.scrollTo` is inert now: test fixtures and screenshot scripts must
   set `room.scrollTop` instead.
 
-- **One thing does watch the keyboard: the fade** (`edgeBox()`, `placeEdges()`).
-  Giving the document no scroll stopped the *toolbar* wandering but could not
-  stop iOS sliding the visible box inside the layout box to hold the caret
-  above the keys — which put the writing under the clock. There is no CSS for
-  "the part you can see", so `.edges` is told: `visualViewport.offsetTop` and
-  `.height`, applied as a transform and a height.
+- **One thing does watch the keyboard: the fade** (`edgeTop()`,
+  `placeEdges()`). Giving the document no scroll stopped the *toolbar*
+  wandering but could not stop iOS sliding the visible box inside the layout
+  box to hold the caret above the keys — which put the writing under the
+  clock. There is no CSS for "the part you can see", so the fade is told:
+  `placeEdges()` writes `visualViewport.offsetTop` to `--view-top` on
+  `:root`, and the mask's two *top* stops add it.
 
   **Only the fade.** The toolbar is deliberately left to iOS, which lifts it
   above the keyboard by itself; two attempts to improve on that both made it
   worse. Nothing here may move a control or shift the writing — the worst
-  failure allowed is a gradient arriving a frame late.
+  failure allowed is a fade arriving a frame late.
 
-  **Only the *top* band**, and this is the trap: resizing the whole `.edges`
-  layer to the visible box was tried and shipped and was worse — it drags the
-  fade at the foot up above the keyboard, laying a washed-out stripe across
-  the middle of the writing instead of hiding an edge. Down there the keyboard
-  *is* the edge. So `placeEdges()` sets one custom property, `--view-top`, and
-  `.edges::before` translates by it; the layer itself is never moved or
-  resized. Assert exactly that: `edges.style.height` and `style.transform`
-  stay empty, computed height equals `innerHeight`, and only `--view-top`
-  changes. `edgeTop()` is the arithmetic — 0 for no offset, the rounded
-  offset otherwise, 0 for sub-pixel noise or a missing number.
+  **Only the *top* stops**, and this is the trap: moving the whole fade to the
+  visible box was tried and shipped and was worse — it drags the foot up above
+  the keyboard, laying a washed-out stripe across the middle of the writing
+  instead of hiding an edge. Down there the keyboard *is* the edge. Assert
+  that `--show-bot` contains no reference to `--view-top`, that `.room` never
+  acquires an inline style or moves, and that only `--view-top` changes.
+  `edgeTop()` is the arithmetic — 0 for no offset, the rounded offset
+  otherwise, 0 for sub-pixel noise or a missing number.
 
 - **The bar ignores the soft keyboard, on purpose.** A phone keyboard shrinks
   the visual viewport and leaves the layout viewport alone, so
@@ -216,27 +242,54 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
   `bottom` untouched. The accepted cost is that the toolbar and the running
   total are behind the keyboard while you type, with no way to dismiss it.
 
-- **The faded edges** (`.edges`). The complaint underneath the whole keyboard
-  saga was writing sharing pixels with chrome, and it is answered in paint: a
-  fixed, inert layer carrying a `--bg` gradient, solid as far as the chrome
-  reaches and fading over as much again.
+- **The faded edges are a `mask-image` on `.room`**, not a layer over it. The
+  complaint underneath the whole keyboard saga was writing sharing pixels with
+  chrome, and it is answered in paint — but *which* paint matters more than it
+  looks.
 
-  Two bands, and they are scoped differently on purpose. **The foot fades
-  everywhere** — the bar is on every device — and lives on `.edges` itself.
-  **The top fades only under `@media (pointer: coarse)`**, as `.edges::before`,
-  because only a phone puts a clock up there. Written that way round so the
-  gradient every device wants isn't duplicated inside a media query.
+  The first version was a scrim: an opaque `--bg` band across each edge on a
+  fixed `.edges` element. It worked, and it framed the clear-hold water. An
+  opaque layer sits between the writing and everything painted after it, and
+  what is painted after it is the water, a wash of about a quarter opacity.
+  Water over writing is water; water over an opaque band is a dead slab with
+  the wave crest cut off flat where the band begins. Fixing *that* took
+  `--fade-top`/`--fade-bot` written from JavaScript on every frame of the
+  flood to walk the bands out of the tide's way, band heights measured off
+  pseudo-elements, and a ramp that is off by one band-height if you write the
+  obvious thing.
 
-  Its **place in `index.html` is its layering** — after `</main>`, before the
-  flood canvas and the bar. Nothing in the sheet sets a `z-index`, so paint
-  order is DOM order, and `.doc` is `position: relative`; put this any earlier
-  (a `body::before`, say) and the writing paints straight over it, which looks
-  exactly like the rule not working. Assert the foot gradient in both contexts,
-  the top one only on coarse (`getComputedStyle(el, '::before').content` is
-  `none` on a fine pointer), `pointer-events: none`, and that toggling the
-  layer moves no line's `offsetTop`. Chromium reports every
-  `env(safe-area-inset-*)` as `0`, so for a picture worth judging, inject a
-  notch-sized inset first.
+  Masking deletes all of it. The writing is removed at the edges instead of
+  covered, so nothing opaque is left to occlude anything and the water flows
+  over the whole screen at every height for free. `.edges`, `stepAside()` and
+  the per-frame work are gone. **If either custom property reappears, the
+  scrim has come back with it** — that is what `13f` guards.
+
+  Four stops on `:root`, so one declaration serves both edges:
+  `--hide-top`/`--show-top`, `--hide-bot`/`--show-bot`. **The foot is on every
+  device** — the bar is. **The top is `0px` except under
+  `@media (pointer: coarse)`**, because only a phone puts a clock up there;
+  a desktop has no top fade to draw. Both `-webkit-mask-image` and
+  `mask-image` are set — Safari before 15.4 has only the prefixed one.
+
+  The mask is pure alpha, black and transparent, no palette colour — so a
+  theme change cannot make it flash, and the `html.swapping` freeze is now
+  very likely inert. It is kept anyway: the flash it fixed was real and
+  reported, and one frame without transitions is free.
+
+  What must stay true: the toolbar and the about dialog live **outside**
+  `.room` and are never masked — the bar has to stay readable over writing
+  fading behind it. Assert the mask in both pointer contexts, the top stops at
+  `0px` on a fine pointer, that no `.edges` element exists, and that turning
+  the mask off moves no line's `offsetTop`.
+
+  Chromium reports every `env(safe-area-inset-*)` as `0`, so for a picture
+  worth judging, restate `--hide-top`/`--show-top` at 59 px and `--foot` at
+  34 px — the numbers `probe.html` read off a real iPhone. Scroll the room
+  before flooding too: with the page at the top there is no writing under the
+  fade to hide, and every version of this looks identical.
+
+  **Not testable here:** whether iOS composites a masked, scrolling
+  `contenteditable` smoothly while you type. That needs the phone.
 
 - Export picks its extension from the page: `.fountain` for a script,
   `.md` for a page that used a mark, `.txt` for one that didn't

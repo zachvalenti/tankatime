@@ -82,6 +82,10 @@ try { Object.assign(window.TC, JSON.parse(localStorage.tcProbe || '{}')); } catc
 <div class="top"></div><div class="bot"></div>
 <div class="room">
 
+<h1>is the latest release actually live here?</h1>
+<table id="ver"></table>
+<div><button id="recheck">check again</button></div>
+
 <h1>does the browser follow the page colour?</h1>
 <p style="color:#3d5c46">Pick how the colour is announced, set the conditions,
 then cycle and watch Safari's own top and bottom bars.</p>
@@ -109,6 +113,61 @@ then cycle and watch Safari's own top and bottom bars.</p>
 <div class="tall"></div>
 </div>
 <script>
+/* Which release is live, and which one this device is actually running.
+ *
+ * Most merges don't change anything you could point at from across the
+ * room, so "did it ship?" is otherwise a guess. Two numbers answer it,
+ * and they can disagree — which is the interesting case:
+ *
+ *   on the server   the CACHE name in sw.js, read past every cache. This
+ *                   is what the deploy put there.
+ *   on this device  the cache the service worker has actually installed.
+ *                   A new worker only takes over once it has downloaded
+ *                   the whole release, so until it does, this phone is
+ *                   still running the old one however many times you pull
+ *                   to refresh.
+ *
+ * Worth knowing while reading this page: sw.js caches every GET it
+ * serves, not only the files it precaches, so probe.html itself is held
+ * until the next CACHE bump. If the stamp below doesn't match the
+ * release, this page is stale too and the rest of it may be lying.
+ */
+const PROBE_BUILD = 'v51';
+
+async function serverRelease() {
+  // no-store to get past both the HTTP cache and the service worker
+  const res = await fetch('sw.js', { cache: 'no-store' });
+  const m = (await res.text()).match(/tanka-time-(v\d+)/);
+  return m ? m[1] : '(not found)';
+}
+
+async function deviceRelease() {
+  if (!window.caches) return '(no cache API)';
+  const names = (await caches.keys()).filter(n => n.startsWith('tanka-time-'));
+  if (!names.length) return '(app never opened here)';
+  return names.map(n => n.replace('tanka-time-', '')).join(' + ');
+}
+
+async function drawVer() {
+  const el = document.getElementById('ver');
+  el.innerHTML = '<tr><td>reading…</td><td></td></tr>';
+  let server, device;
+  try { server = await serverRelease(); } catch (e) { server = '(offline?)'; }
+  try { device = await deviceRelease(); } catch (e) { device = '(error)'; }
+  const live = server === device;
+  el.innerHTML =
+    `<tr><td>on the server</td><td><b>${server}</b></td></tr>` +
+    `<tr><td>on this device</td><td><b>${device}</b></td></tr>` +
+    `<tr><td>this probe built for</td><td><b>${PROBE_BUILD}</b></td></tr>` +
+    `<tr><td>verdict</td><td><b>${
+      device.startsWith('(') ? 'nothing installed here yet'
+      : live ? 'live — you are testing the latest'
+      : 'NOT live yet — open the app, then come back'
+    }</b></td></tr>`;
+}
+document.getElementById('recheck').onclick = drawVer;
+drawVer();
+
 const rows = [
   ['screen', () => `${screen.width} x ${screen.height} css px`],
   ['devicePixelRatio', () => devicePixelRatio],
