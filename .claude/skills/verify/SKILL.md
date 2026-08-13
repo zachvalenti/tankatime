@@ -96,9 +96,11 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
   meta isn't being re-read", and it is not: the meta is fine.
 
   Two dead ends, both walked, neither of them the cause. Rewriting `.content`
-  in place works in Safari — it is what the app did from its first commit.
-  Replacing the element outright also works, and `setThemeColor()` still does
-  that, harmlessly. Neither is the fix, so don't reach for either when this
+  in place works in Safari — it is what the app did from its first commit, and
+  what `setThemeColor()` went back to doing. Replacing the element works too,
+  and shipped for one release on the theory that Safari watched the node; it
+  fixed nothing and it restarts the tint's ease, which the flood cannot afford.
+  Neither is the fix, so don't reach for either when this
   recurs; check the manifest. Assert the meta's colour tracks the computed page
   background across a theme switch, exactly one in `<head>`, and that
   `manifest.webmanifest` has no `theme_color` key at all.
