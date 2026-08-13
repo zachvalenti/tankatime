@@ -60,6 +60,32 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
   precaches, so `probe.html` is itself held until the next `CACHE` bump. It is
   not a live-editable page. If its stamp is behind the release, the rest of
   what it says may be stale too.
+- **The chrome floods with the page** (`floodChrome()` in the water module).
+  On a phone the page is not the screen: Safari keeps a strip at each end for
+  its address bar and toolbar, and the installed app keeps the status bar. No
+  page can paint into any of it. So the clear-hold tide filled the writing area
+  and stopped dead at its edges, leaving a band of theme colour above and below
+  — reported as "not starting from bottom nor going to top, banded" from a
+  Safari screenshot, *after* the page itself had been proved to flood edge to
+  edge. Worth recognising, because it looks exactly like the water being
+  clipped and it is nothing of the kind.
+
+  `theme-color` is the only lever a page has on that strip, and it takes a
+  colour, not a layer — so it is handed the colour the page has actually
+  become: `--tide` mixed into the theme background by how much of the screen
+  the water has taken, times the three layers' combined opacity (computed from
+  their own alphas, so retuning them keeps this honest). At the full flood the
+  chrome equals the flooded page.
+
+  **Stepped and throttled on purpose** — ten steps, 180 ms apart. Browsers ease
+  this tint over a couple of hundred milliseconds rather than snapping it, so
+  writing it every frame leaves the chrome chasing a value it never reaches.
+  For the same reason `setThemeColor()` rewrites the attribute rather than
+  replacing the element: replacing it restarts that ease at every step.
+
+  Assert the walk has several distinct values but not dozens, that it never
+  overshoots the flooded colour, that `stop()` returns it *exactly* to the
+  theme, and that only one meta exists afterwards.
 - **The manifest must declare no `theme_color`.** Safari tints its own toolbar
   from `theme-color`, and `manifest.webmanifest` deliberately leaves the field
   out: a manifest is fetched *after* the document parses, and once Safari has

@@ -1243,6 +1243,9 @@ const water = (() => {
   let riseT0 = 0, riseP0 = 0, fallT0 = 0, fallP0 = 0;
   let p = 0, lastNow = 0, tide = '#58a6c8';
   let layers = [];
+  // how opaque the three layers come to when stacked, worked out from
+  // their own alphas so it stays true if they are ever retuned
+  let tideAlpha = 0.25;
 
   // fresh randomized layers each hold, so no two floods are the same
   function build() {
@@ -1258,6 +1261,58 @@ const water = (() => {
       });
       layers.push({ waves, sink: i * 12, alpha: 0.105 - i * 0.015 });
     }
+    // three washes over one another: what's left of the page underneath
+    // is the product of what each one lets through
+    tideAlpha = 1 - layers.reduce((a, L) => a * (1 - L.alpha), 1);
+  }
+
+  /* The browser's own chrome, flooded along with the page.
+   *
+   * On a phone the page is not the screen. In Safari the address bar and
+   * the toolbar own a strip at each end, and in the installed app the
+   * status bar owns the top; a page cannot paint into any of it. So the
+   * tide would climb the page, stop dead at the top of the writing area,
+   * and leave a band of theme colour above and below it — banded, however
+   * completely the page itself is covered.
+   *
+   * theme-color is the one lever a page has on that strip, and it takes a
+   * colour rather than a layer, so it is given the colour the page has
+   * actually become: the tide's own hue, mixed into the background by as
+   * much of the screen as the water has taken. At the full flood the
+   * chrome is exactly the flooded page and the whole screen is one thing.
+   *
+   * Stepped and throttled deliberately. Browsers ease this tint over a
+   * couple of hundred milliseconds rather than snapping it, so writing it
+   * every frame would leave the chrome chasing a value it never reaches.
+   * Ten steps over three seconds is under one change per ease.
+   */
+  const CHROME_STEPS = 10, CHROME_MS = 180;
+  let chromeStep = -1, chromeAt = 0;
+
+  const HEX = /^#[0-9a-f]{6}$/i;
+  function mixHex(from, to, t) {
+    const read = h => [1, 3, 5].map(i => parseInt(h.substr(i, 2), 16));
+    const a = read(from), b = read(to);
+    return '#' + a.map((v, i) =>
+      Math.round(v + (b[i] - v) * t).toString(16).padStart(2, '0')).join('');
+  }
+
+  function themeBg() {
+    return THEMES[document.documentElement.dataset.theme || 'room'];
+  }
+
+  // cover: how much of the screen the water has taken, 0 to 1
+  function floodChrome(cover, now) {
+    if (!HEX.test(tide) || !HEX.test(themeBg())) return;
+    const step = Math.round(cover * CHROME_STEPS);
+    if (step === chromeStep || now - chromeAt < CHROME_MS) return;
+    chromeStep = step; chromeAt = now;
+    setThemeColor(mixHex(themeBg(), tide, (step / CHROME_STEPS) * tideAlpha));
+  }
+
+  function dryChrome() {
+    chromeStep = -1;
+    setThemeColor(themeBg());
   }
 
   // size the canvas in device pixels, capped at 2× — sharp on phone
@@ -1291,6 +1346,8 @@ const water = (() => {
     const base = (h + 70 * dpr) - (h + 170 * dpr) * p;
     const swell = 1 + fury * 1.5;
     const rush = 1 + fury * 3;
+    // the chrome takes the same tide the page does — see floodChrome()
+    floodChrome(Math.max(0, Math.min(1, (h - base) / h)), now);
 
     ctx.clearRect(0, 0, w, h);
     ctx.fillStyle = tide;
@@ -1323,6 +1380,7 @@ const water = (() => {
     mode = 'idle';
     p = 0;
     ctx.clearRect(0, 0, flood.width, flood.height);
+    dryChrome(); // and the chrome comes back to the theme it belongs to
   }
 
   return {
@@ -1411,23 +1469,29 @@ clearBtn.addEventListener('blur', cancelHold);
  * simply arrives all at once, the way it looks like it should.
  */
 /* A browser that tints its own chrome to match the page reads
- * theme-color — and Safari reads the *element*, not the attribute on it.
- * Writing a new .content in place is a change nothing notices: the
- * address bar keeps whatever colour it had when the page loaded, so
- * switching from dusk to the green room leaves a purple bar sitting
- * under a black page, and a reload doesn't shift it either.
+ * theme-color, and rewriting this attribute is enough for every engine
+ * that does — Safari included, which was checked directly on a phone
+ * with probe.html rather than assumed.
  *
- * Replacing the element outright is the one mutation every engine sees.
- * It costs a node per theme change, which is three nodes a session at
- * the outside.
+ * It was assumed once, in the other direction: the tint stopped
+ * following a theme change, the meta looked like the suspect, and this
+ * grew a version that replaced the whole element on the theory that
+ * Safari watched the node and not the attribute. It doesn't, and that
+ * wasn't the bug — manifest.webmanifest was declaring a theme_color of
+ * its own, and a manifest, fetched after the document parses, takes the
+ * tint over from the tag. The manifest declares none now.
+ *
+ * Which leaves the light touch, and the tide wants it: the flood writes
+ * this ten times as it rises, and replacing the element each time would
+ * restart the browser's own ease on the tint at every step.
  */
 function setThemeColor(hex) {
-  const meta = document.createElement('meta');
-  meta.setAttribute('name', 'theme-color');
-  meta.setAttribute('content', hex);
-  const old = document.querySelector('meta[name="theme-color"]');
-  if (old) old.replaceWith(meta);
-  else document.head.appendChild(meta);
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) { meta.setAttribute('content', hex); return; }
+  const made = document.createElement('meta');
+  made.setAttribute('name', 'theme-color');
+  made.setAttribute('content', hex);
+  document.head.appendChild(made);
 }
 
 function applyTheme(name) {
