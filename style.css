@@ -369,26 +369,6 @@ html.swapping, html.swapping * { transition: none !important; }
   pointer-events: none;
 }
 
-/* The foot of the screen, where the count and the buttons live.
- *
- * The writing runs the full height of the room and the bar is fixed
- * across the bottom of it, so scroll far enough and a line of the poem is
- * sharing pixels with the word "export". The room could reserve space,
- * but on a phone a soft keyboard resizes what "the foot of the screen"
- * means the moment it opens, and chasing that was tried twice and was
- * worse both times. This doesn't measure anything: the page simply stops
- * being legible where the chrome starts, fading into its own background,
- * and a keyboard is welcome to cover whatever it likes.
- *
- * Solid for as far as the bar really reaches, then fading over as much
- * again — a line dims out rather than ending at a ruled edge.
- *
- * Its place in index.html is its layering. Nothing in this sheet sets a
- * z-index, so paint order is DOM order, and .doc is positioned: put this
- * any earlier and the writing paints straight over it, which looks
- * exactly like the rule not working. After the poem, before the water
- * and the bar — over the writing, under the count. */
-
 /* the bottom toolbar spans the viewport; env(safe-area-inset-*) pads
    past notches and home-bar indicators on phones */
 .bar {
