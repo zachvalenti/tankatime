@@ -159,6 +159,40 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
   it on a phone with `probe.html`, whose experiment varies each candidate
   independently and links a manifest whose `theme_color` is a red that appears
   nowhere else, so the source being listened to is never in doubt.
+- **`/version`** (`modes.js`, `setRelease()`/`askRelease()` in `app.js`). Rides
+  the mode machinery, which is the whole reason it is a mode: dimmed, uncounted,
+  dropped from the export, all for free. It **overrides every other mode in
+  either order** — a page whose purpose is to be read once and cleared is not
+  also a screenplay.
+
+  **Deliberately absent from the `?` card and the README.** It is an instrument,
+  not a feature; the only documentation is the comment in `modes.js`. Don't
+  "fix" that by writing it up.
+
+  The readout is a `::after` on the mode line, same trick as the Fountain
+  suggestion and for the same reasons — `getText()`, the draft and the export
+  cannot contain it and the caret cannot land in it. Assert exactly that:
+  `getText()` is only what was typed, repeated `refresh()` leaves
+  `editor.innerHTML` byte-identical, the gutter emits no span, and the export
+  drops the line. The lookup is lazy — a page without `/version` must make no
+  request at all.
+
+- **A page cannot read the server's `sw.js` through its own worker**, and this
+  cost real time. `fetch('sw.js', { cache: 'no-store' })` gets past the HTTP
+  cache and **not** past the service worker: a page-initiated fetch runs through
+  the worker's fetch handler, which was cache-first and had cached that very
+  file. So "what does the server have?" returned the release *this device* was
+  on, the two always agreed, and `probe.html` reported "live — you are testing
+  the latest" no matter how far behind the app was. A cache-buster is no escape
+  either: `caches.match` here passes `ignoreSearch: true`.
+
+  `sw.js` from v55 excludes its own path from the fetch handler, which is the
+  fix for both readers at once. Two things follow. Against an **older** worker
+  still in charge the old lie persists, so a "live" verdict from a pre-v55
+  install proves nothing. And when a release seems not to have landed, believe
+  `caches.keys()` — what this copy is *running* — over any claim about the
+  server.
+
 - Clear hold: early release cancels and keeps text; 3 s hold clears.
 - Reload after a 500 ms pause to check the debounced localStorage save.
 - Markdown: `# ` heading (blank gutter, resets the 5-7-5-7-7 targets below

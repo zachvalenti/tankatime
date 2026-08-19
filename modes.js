@@ -19,6 +19,14 @@
  *             of Markdown, and no syllables at all — a count of beats in
  *             a line of dialogue would be a number about nothing. The
  *             total falls to words, or the clock.
+ *   /version  which release this app is actually running, printed on the
+ *             line itself. It answers the one question a cache-first
+ *             offline app makes hard to ask: an installed copy serves
+ *             whatever it cached, so "is my fix on this phone?" is
+ *             otherwise a guess. Overrides every mode above it — nothing
+ *             else is asked for by a page whose whole purpose is to be
+ *             read once and cleared. Deliberately absent from the ? card:
+ *             it is an instrument, not a feature.
  *
  * They are scaffolding rather than writing: no count in the margin,
  * nothing in the total, and the export leaves them behind.
@@ -31,7 +39,7 @@
  * the top of the page and reports what it was asked for.
  */
 
-const MODE_WORDS = ['free', 'simple', 'fountain', 'haiku'];
+const MODE_WORDS = ['free', 'simple', 'fountain', 'haiku', 'version'];
 const MODE_WORD = new RegExp('^/(' + MODE_WORDS.join('|') + ')$');
 
 // the mode words on a line, or null if the line is a line of writing —
@@ -48,8 +56,8 @@ function modeWords(text) {
   return out;
 }
 
-// → { free, simple, fountain, haiku, lines }, lines being how many the
-// modes occupy at the top, which is also how many the export drops
+// → { free, simple, fountain, haiku, version, lines }, lines being how
+// many the modes occupy at the top, which is also how many the export drops
 function readModes(src) {
   const on = new Set();
   let n = 0;
@@ -67,9 +75,20 @@ function readModes(src) {
    * a caller reading this should never have to know which of the two
    * takes precedence, only what the room is.
    */
-  const fountain = on.has('fountain');
-  return { free: on.has('free'), simple: on.has('simple'),
-           fountain, haiku: on.has('haiku') && !fountain, lines: n };
+  /* /version outranks all of them, and unlike the pair above this is
+   * not a contradiction being resolved — it is a different kind of page.
+   * The others ask for a room to write in; this one asks the app to say
+   * what it is, is read once, and is cleared. Combining it with a
+   * screenplay grammar would mean something, but nothing worth having,
+   * so the same treatment applies: the others come back *off* rather
+   * than merely inert, and a caller never has to know the order.
+   */
+  const version = on.has('version');
+  const fountain = !version && on.has('fountain');
+  return { free: !version && on.has('free'),
+           simple: !version && on.has('simple'),
+           fountain, haiku: !version && on.has('haiku') && !fountain,
+           version, lines: n };
 }
 
 // Node (a test run, or a future build tool) sees module; the browser

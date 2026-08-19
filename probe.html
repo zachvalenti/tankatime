@@ -132,10 +132,16 @@ then cycle and watch Safari's own top and bottom bars.</p>
  * until the next CACHE bump. If the stamp below doesn't match the
  * release, this page is stale too and the rest of it may be lying.
  */
-const PROBE_BUILD = 'v54';
+const PROBE_BUILD = 'v55';
 
 async function serverRelease() {
-  // no-store to get past both the HTTP cache and the service worker
+  /* no-store gets past the HTTP cache. It does *not* get past the service
+   * worker — a page-initiated fetch runs through the worker's own fetch
+   * handler, which was cache-first and had cached this file, so this
+   * function used to return the release *this device* is on and the
+   * verdict below read "live" unconditionally. sw.js from v55 excludes
+   * itself from that handler; against an older worker still in charge,
+   * treat a "live" verdict here with suspicion. */
   const res = await fetch('sw.js', { cache: 'no-store' });
   const m = (await res.text()).match(/tanka-time-(v\d+)/);
   return m ? m[1] : '(not found)';

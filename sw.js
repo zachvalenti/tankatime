@@ -11,7 +11,7 @@
  * the new name and deletes the old cache on activate.
  */
 
-const CACHE = 'tanka-time-v54';
+const CACHE = 'tanka-time-v55';
 const ASSETS = [
   './',
   'index.html',
@@ -66,6 +66,21 @@ self.addEventListener('activate', e => {
 // re-checking the network on every load.
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
+  /* Never answer for this script out of the cache.
+   *
+   * The browser fetches worker scripts outside the worker, so
+   * registration is unaffected either way. But a *page* asking for sw.js
+   * comes through here, and that is exactly how the app's /version mode
+   * and probe.html read "what release does the server have?" — answering
+   * from cache handed them this copy's own version, so the comparison was
+   * a file against itself and the verdict was "latest" no matter how far
+   * behind the app actually was. A cache-buster couldn't save it either:
+   * the caches.match below ignores the query string.
+   *
+   * Returning without respondWith lets the request go to the network
+   * normally, which for one small file on demand is the right trade.
+   */
+  if (new URL(e.request.url).pathname.endsWith('/sw.js')) return;
   e.respondWith(
     caches.match(e.request, { ignoreSearch: true }).then(hit =>
       hit ||

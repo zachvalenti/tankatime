@@ -330,6 +330,7 @@ function refresh() {
     decorate(rows[i], i < modes.lines, modes.simple, kinds && kinds[i]);
   measure(rows, src, modes, kinds);
   setGhost(rows, src, modes, kinds);
+  setRelease(rows, src, modes);
 
   // Both of these rewrite the document, so they go last and each starts
   // a fresh refresh() of its own rather than trying to patch this one.
@@ -469,6 +470,77 @@ function setGhost(rows, src, modes, kinds) {
   ghostLine = openLine;
   ghostName = at + hits[0];
   openLine.dataset.ghost = hits[0].slice(typed.length);
+}
+
+/* The /version readout — see the note in modes.js for what it is for.
+ *
+ * Painted with the same pseudo-element trick as the suggestion above, and
+ * for the same reasons: a ::after has no child node, so getText() can't
+ * see it, the draft and the export can't contain it, currentRuns() can't
+ * call it foreign and repaint forever, and the caret cannot land inside
+ * it. Everything else a mode line gets — dimmed, uncounted, dropped from
+ * the export — it gets by being a mode line, which is the whole reason
+ * /version is one rather than a command of its own.
+ *
+ * Only refresh() calls this. The caret-move path deliberately doesn't:
+ * the readout depends on the mode words and nothing else, and those
+ * cannot change without an edit.
+ */
+let releaseLine = null;
+let release = null; // null until first asked; a string from then on
+
+function clearRelease() {
+  if (releaseLine) releaseLine.removeAttribute('data-release');
+  releaseLine = null;
+}
+
+function setRelease(rows, src, modes) {
+  clearRelease();
+  if (!modes.version) return;
+  // lazy, and once: the lookup costs a network request, and a page that
+  // never asks the question should never pay for it
+  if (release === null) { release = ' reading…'; askRelease(); }
+  // on the line that asked, which need not be the first — mode words may
+  // be spread over as many leading lines as the writer likes
+  let i = -1;
+  for (let n = 0; n < modes.lines && n < src.length; n++)
+    if (/\/version\b/i.test(src[n])) { i = n; break; }
+  if (i < 0 || !rows[i]) return;
+  releaseLine = rows[i];
+  releaseLine.setAttribute('data-release', release);
+}
+
+/* Two questions, because on a cache-first app they have different
+ * answers: what this copy is *running*, and what the server would hand a
+ * fresh one. A worker serves its own cache until a new one activates, so
+ * an installed app can sit a release behind indefinitely and look fine
+ * doing it — which is exactly the doubt this mode exists to remove.
+ */
+async function askRelease() {
+  const PREFIX = 'tanka-time-';
+  let here = '(unreadable)', there = '';
+  try {
+    if (!window.caches) here = '(no cache API)';
+    else {
+      const names = (await caches.keys()).filter(n => n.startsWith(PREFIX));
+      here = names.length
+        ? names.map(n => n.slice(PREFIX.length)).join(' + ')
+        : '(not installed)';
+    }
+  } catch (e) { /* leave it unreadable */ }
+  try {
+    // no-store to get past both the HTTP cache and the worker itself
+    const res = await fetch('sw.js', { cache: 'no-store' });
+    const m = (await res.text()).match(/tanka-time-(v\d+)/);
+    if (m) there = m[1];
+  } catch (e) { /* offline, which is an answer too */ }
+
+  // kept short on purpose: this sits on the line the writer typed, on a
+  // phone, and a readout that wraps starts to look like writing
+  release = ' ' + (!there ? here + ' · offline'
+    : there === here ? here + ' · latest'
+    : here + ' · server has ' + there + ', reopen twice');
+  refresh();
 }
 
 /* Taking the name.
