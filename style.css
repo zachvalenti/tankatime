@@ -350,6 +350,16 @@ html.swapping, html.swapping * { transition: none !important; }
   pointer-events: none;
 }
 
+/* The /version readout, painted on the mode line that asked for it. Same
+   pseudo-element as the suggestion above and for the same reasons — see
+   the note over setRelease() in app.js. Dim, because a mode line is
+   scaffolding and this is a reading off the scaffolding. */
+.editor > .md-mode[data-release]::after {
+  content: attr(data-release);
+  color: var(--dim);
+  pointer-events: none;
+}
+
 .editor > .ftn-lyric    { font-style: italic; }
 .editor > .ftn-synopsis { color: var(--dim); font-style: italic; }
 
@@ -474,6 +484,23 @@ html.swapping, html.swapping * { transition: none !important; }
   width: 100%;
   height: calc(100% + env(safe-area-inset-bottom));
   pointer-events: none;
+}
+
+/* And a phone gets the strip cleared whether or not env() will say how
+   tall it is.
+ *
+ * env(safe-area-inset-*) resolves to 0 unless viewport-fit=cover is
+ * actually in force, so the line above is only as good as that promise —
+ * and the dry band survived it on a real installed app, which says the
+ * promise wasn't kept there. max() stops asking: the true inset where it
+ * is reported, or enough to clear the tallest home bar where it isn't.
+ *
+ * The overdraw hangs off the bottom of the screen where nothing can see
+ * it. It costs the tide about a tenth of a second of extra climb before
+ * the surface reaches the visible edge, and nothing else. A desktop keeps
+ * the exact rule above — no home bar, nothing to clear. */
+@media (pointer: coarse) {
+  .flood { height: calc(100% + max(env(safe-area-inset-bottom), 34px)); }
 }
 
 /* the ? is the only way into the card; let it sit a little plainer and
