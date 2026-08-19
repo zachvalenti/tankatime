@@ -43,6 +43,34 @@
      thing standing in front of what it would sample. */
   .veil { position: fixed; inset: 0; pointer-events: none; display: none; }
   html.veiled .veil { display: block; }
+  /* The candidate boxes. Each is fixed and sized by a *different* rule,
+     and each paints only the bottom slice of its own box plus a bright
+     line exactly on its bottom edge. One screenshot then says which rules
+     reach the physical bottom of the screen and which stop short — which
+     no number can tell you, because every number here is measured in a
+     layout viewport that may itself be the thing falling short. */
+  .cands { display: none; }
+  html.boxes .cands { display: block; }
+  /* The control for the whole question. A stretched fixed div — the one box
+     CSS can size exactly — filled with a colour that appears nowhere else.
+     If the strip at the foot of the screen does not turn red under this,
+     then no page CSS reaches it and every fix aimed at the water's box was
+     aimed at the wrong thing. */
+  .solid { position: fixed; inset: 0; display: none;
+           background: #e05252; pointer-events: none; z-index: 99; }
+  /* 'painted' on the root, not 'solid': a bare .solid rule matches the
+     root element too, so sharing the name hides the whole document — the
+     same trap .cands fell into above. */
+  html.painted .solid { display: block; }
+  .cand { position: fixed; pointer-events: none; overflow: hidden;
+          font: 10px/1 ui-monospace, Menlo, monospace; color: #000; }
+  .cand i { position: absolute; left: 0; right: 0; bottom: 0; height: 170px;
+            background: currentColor; opacity: .8; font-style: normal;
+            display: block; }
+  .cand b { position: absolute; left: 0; right: 0; bottom: 0; height: 3px;
+            background: #fff; }
+  .cand s { position: absolute; left: 1px; bottom: 150px; text-decoration: none;
+            color: #000; font-weight: 700; }
   .top, .bot { position: fixed; left: 0; right: 0; background: #e0525233; }
   .top { top: 0; height: calc(env(safe-area-inset-top) + 3.4rem); }
   .bot { bottom: 0; height: calc(.5rem + env(safe-area-inset-bottom) * .5 + 3.4rem); }
@@ -79,12 +107,34 @@ try { Object.assign(window.TC, JSON.parse(localStorage.tcProbe || '{}')); } catc
 </head>
 <body>
 <div class="veil"></div>
+<div class="cands" id="candbox"></div>
+<div class="solid"></div>
 <div class="top"></div><div class="bot"></div>
 <div class="room">
 
 <h1>is the latest release actually live here?</h1>
 <table id="ver"></table>
 <div><button id="recheck">check again</button></div>
+
+<h1>where does a fixed layer actually end?</h1>
+<p style="color:#3d5c46"><b style="color:#4ade80">Start here.</b> Paint the
+screen solid red. If the strip at the very bottom does <i>not</i> turn red,
+no page CSS can reach it and the water was never the problem.</p>
+<div>
+  <button id="solid">paint the whole screen solid</button>
+</div>
+<p style="color:#3d5c46">If it <i>does</i> turn red, some rule reaches the
+bottom and the question is which. Each lettered column is a fixed box sized
+differently, painting its own bottom slice with a white line on its bottom
+edge. Show them and screenshot: a line on the physical bottom edge is a
+pass, a line above it is short, and no line at all means that box runs past
+the bottom — also a pass. The numbers are weaker evidence, being measured
+<i>in</i> a layout viewport that may itself be the thing falling short.</p>
+<div>
+  <button id="cands">show the candidate boxes</button>
+  <button id="remeasure">measure again</button>
+</div>
+<table id="box"></table>
 
 <h1>does the browser follow the page colour?</h1>
 <p style="color:#3d5c46">Pick how the colour is announced, set the conditions,
@@ -173,6 +223,180 @@ async function drawVer() {
 }
 document.getElementById('recheck').onclick = drawVer;
 drawVer();
+
+/* Where does a fixed layer actually end?
+ *
+ * The clear-hold water is a fixed canvas at inset: 0, and on this phone it
+ * leaves a strip of theme colour along the very bottom. Three fixes aimed
+ * at the *box* have not moved it, so the question is no longer "which
+ * height rule is right" but "does any height rule reach the bottom of this
+ * screen at all" — and if none does, the strip is not the page's to paint
+ * and the whole approach is wrong.
+ *
+ * So: one box per candidate rule, each painting its own bottom edge. The
+ * numbers are gathered too, but they are the weaker evidence — every rect
+ * here is measured in the layout viewport, so if that viewport is itself
+ * short of the screen then every candidate reports the same bottom and
+ * every one of them is short. Only the screenshot distinguishes them.
+ *
+ * H is deliberately a <canvas>, because the app's layer is one and a
+ * replaced element does not size like a div: give a div inset: 0 with no
+ * width or height and it stretches between all four edges, which is the
+ * one box guaranteed correct. A canvas takes its intrinsic size instead,
+ * which is why the app had to say width/height: 100% and how it came to
+ * depend on a percentage in the first place. If A reaches the bottom and
+ * H does not, the fix is to wrap the canvas in a stretched div.
+ */
+const CANDS = [
+  ['A', 'div',    'inset:0',                                        '#4ade80'],
+  ['B', 'div',    'top:0;left:0;width:100%;height:100%',             '#e05252'],
+  ['C', 'div',    'top:0;height:calc(100% + env(safe-area-inset-bottom))', '#f6f1e3'],
+  ['D', 'div',    'top:0;height:100vh',                             '#58a6c8'],
+  ['E', 'div',    'top:0;height:100dvh',                            '#d98cf0'],
+  ['F', 'div',    'top:0;height:100lvh',                            '#f0c14b'],
+  ['G', 'div',    'bottom:0;height:100%',                           '#7ef0d0'],
+  ['H', 'canvas', 'inset:0;width:100%;height:100%',                 '#ff8ab0'],
+  ['I', 'wrap',   'div inset:0 > canvas 100%/100%',                  '#a0e0ff'],
+];
+
+const candEls = [];
+(function buildCands() {
+  const host = document.getElementById('candbox');
+  CANDS.forEach(([tag, kind, css, colour], i) => {
+    const el = document.createElement(kind === 'canvas' ? 'canvas' : 'div');
+    el.className = 'cand';
+    if (kind === 'wrap') el.style.cssText = 'inset:0';
+    // each takes a vertical slice, so eight bottom edges are visible at once
+    const w = 100 / CANDS.length;
+    if (kind !== 'wrap') el.style.cssText = css + `;color:${colour}`;
+    else el.style.color = colour;
+    // the slice geometry is written after the candidate rule so it cannot
+    // be overridden by it — left/width here, the rule owns top/bottom/height
+    el.style.left = (i * w) + '%';
+    el.style.width = w + '%';
+    el.style.right = 'auto';
+    if (kind === 'wrap') {
+      // the candidate is the *canvas inside* a stretched div: whatever the
+      // wrapper's box turns out to be, the percentage resolves against it
+      const c = document.createElement('canvas');
+      c.style.cssText = 'position:absolute;inset:0;width:100%;height:100%';
+      el.appendChild(c);
+      el.dataset.tag = tag;
+    } else if (kind !== 'canvas') {
+      el.innerHTML = `<i></i><b></b><s>${tag}</s>`;
+    } else {
+      // a canvas has no children to paint with, so it paints itself — the
+      // same bottom slice and edge line, drawn in its own bitmap
+      el.dataset.tag = tag;
+    }
+    host.appendChild(el);
+    candEls.push({ tag, kind, css, colour, el });
+  });
+})();
+
+// the canvas candidate draws its own slice, in device pixels, exactly the
+// way app.js sizes the flood canvas
+function paintCandCanvas() {
+  for (const c of candEls) {
+    if (c.kind !== 'canvas' && c.kind !== 'wrap') continue;
+    const cv = c.kind === 'wrap' ? c.el.firstElementChild : c.el;
+    const dpr = Math.min(devicePixelRatio || 1, 2);
+    const w = Math.round(cv.clientWidth * dpr), h = Math.round(cv.clientHeight * dpr);
+    if (!w || !h) continue;
+    if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+    const x = cv.getContext('2d');
+    x.clearRect(0, 0, w, h);
+    x.globalAlpha = .8;
+    x.fillStyle = c.colour;
+    x.fillRect(0, h - 170 * dpr, w, 170 * dpr);
+    x.globalAlpha = 1;
+    x.fillStyle = '#fff';
+    x.fillRect(0, h - 3 * dpr, w, 3 * dpr);
+    x.fillStyle = '#000';
+    x.font = `700 ${10 * dpr}px ui-monospace, monospace`;
+    x.fillText(c.el.dataset.tag, 2 * dpr, h - 150 * dpr);
+    c.measured = cv;
+  }
+}
+
+// resolve a length the browser has to compute, the same trick px() uses
+const unit = document.createElement('div');
+unit.style.cssText = 'position:absolute;visibility:hidden;top:0;left:0;width:0';
+document.body.appendChild(unit);
+function inPx(css) {
+  unit.style.height = '';
+  unit.style.height = css;
+  const v = getComputedStyle(unit).height;
+  return (!v || v === 'auto' || v === '0px') ? '(unsupported)' : v;
+}
+
+function drawBoxes() {
+  /* A hidden box has no rect, so every reading came back 0 until the
+   * columns were shown. Lay them out for the measurement and put them back:
+   * two reflows on demand is cheaper than a table that lies while it waits
+   * for a tap. */
+  const html = document.documentElement; // declared before `root` exists
+  const was = html.classList.contains('boxes');
+  if (!was) html.classList.add('boxes');
+  paintCandCanvas();
+  /* Measured against screen.height, named so, and not against a max of
+   * every height on offer: one implausible reading would then poison the
+   * reference and report everything short. screen.height is the physical
+   * screen in CSS px, which is the thing the water has to reach. A box can
+   * legitimately read past it — the overdraw does — so 'past' is a pass. */
+  const ref = screen.height;
+  const out = candEls.map(c => {
+    // for the wrapped candidate the answer is the canvas's box, not the
+    // wrapper's — the wrapper is only how it got its size
+    const r = (c.measured || c.el).getBoundingClientRect();
+    const bottom = Math.round(r.bottom);
+    const gap = ref - bottom;
+    return `<tr><td>${c.tag} &nbsp;${c.css}</td><td><b>bottom ${bottom}` +
+      (gap > 0 ? `, ${gap} short` : gap < 0 ? `, ${-gap} past` : ', exact') +
+      `</b></td></tr>`;
+  }).join('');
+
+  const extra = [
+    ['screen.height (the reference)', screen.height],
+    ['innerHeight', innerHeight],
+    ['documentElement.clientHeight', document.documentElement.clientHeight],
+    ['visualViewport.height', visualViewport ? Math.round(visualViewport.height) : '—'],
+    ['100vh resolves to', inPx('100vh')],
+    ['100svh resolves to', inPx('100svh')],
+    ['100lvh resolves to', inPx('100lvh')],
+    ['100dvh resolves to', inPx('100dvh')],
+    ['env(safe-area-inset-bottom)', inPx('env(safe-area-inset-bottom)') === '(unsupported)'
+      ? '0px or unsupported' : inPx('env(safe-area-inset-bottom)')],
+  ].map(([k, v]) => `<tr><td>${k}</td><td><b>${v}</b></td></tr>`).join('');
+
+  document.getElementById('box').innerHTML = out +
+    '<tr><td colspan="2">&nbsp;</td></tr>' + extra;
+  if (!was) html.classList.remove('boxes');
+}
+
+document.getElementById('cands').onclick = e => {
+  // 'boxes' on <html>, not 'cands': a bare .cands rule matches the root
+  // element too, so sharing the name hid the entire document
+  const on = document.documentElement.classList.toggle('boxes');
+  e.target.classList.toggle('on', on);
+  e.target.textContent = on ? 'hide the candidate boxes' : 'show the candidate boxes';
+  drawBoxes();
+};
+document.getElementById('solid').onclick = e => {
+  const on = document.documentElement.classList.toggle('painted');
+  e.target.classList.toggle('on', on);
+  e.target.textContent = on ? 'stop painting it solid'
+                            : 'paint the whole screen solid';
+};
+document.getElementById('remeasure').onclick = drawBoxes;
+drawBoxes();
+// the numbers move when the bars hide, the keyboard opens, or the phone turns
+addEventListener('resize', drawBoxes);
+addEventListener('orientationchange', drawBoxes);
+if (visualViewport) {
+  visualViewport.addEventListener('resize', drawBoxes);
+  visualViewport.addEventListener('scroll', drawBoxes);
+}
 
 const rows = [
   ['screen', () => `${screen.width} x ${screen.height} css px`],
