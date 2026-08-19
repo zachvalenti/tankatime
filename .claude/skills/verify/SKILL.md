@@ -190,16 +190,21 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
   accident and usefully: during a flood the theme-color meta provably walked
   to the flooded colour (the suite pins the exact value) and **the strip did
   not move** — so whatever iOS paints a standalone status bar from, it is not
-  the meta, live. v62 writes the flooded mix to the root's own
-  `background-color` (inline, cleared on `stop()`) — the one remaining
-  page-side lever, invisible inside the view because body paints `var(--bg)`
-  over everything; it exists solely for the bar to read. If the strip still
-  holds, one observation disambiguates: switch themes with `◐` mid-session.
-  A strip that follows without a relaunch means something is live and the
-  lever is wrong; one that waits for the next launch means the bar is read
-  at launch only and no page can animate it — then the static theme bar is
-  the endpoint. Pre-15 iOS shows a system bar; the bottom stays right
-  regardless.
+  the meta, live. v62 walked the root's `background-color` too and the strip
+  still held — but the `◐` theme-switch observation came back **live**: the
+  strip recolours instantly, no relaunch. What a theme switch changes that
+  neither walk did is **body's background**: iOS derives the bar from the
+  document's background colour, and an opaque body tops that derivation, so a
+  value written under it never surfaces. v63 therefore writes the flooded mix
+  to **body** (and the root, since the derivation may blend both; both inline,
+  cleared on `stop()`) — and because body's colour is also the page the eye
+  sees under translucent water, `.room` now carries the **visible base coat**
+  (`background: var(--bg)`): body is what iOS reads, `.room` is what the eye
+  sees, identical at rest and split only mid-flood. Assert exactly that split:
+  at rest both computed to the theme with no inline colours; at full flood
+  body's inline equals the meta's flooded value while `.room` stays on the
+  theme; both inlines cleared on `stop()`; a theme switch lands on both.
+  Pre-15 iOS shows a system bar; the bottom stays right regardless.
   What does *not* come back under any opaque style is writing under the clock —
   that is translucent's feature, and the dead strip at the foot is its price.
   The coarse top-fade collapses to the small `env()=0` fade every other phone
