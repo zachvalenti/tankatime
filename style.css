@@ -358,6 +358,10 @@ html.swapping, html.swapping * { transition: none !important; }
   content: attr(data-release);
   color: var(--dim);
   pointer-events: none;
+  /* the readout carries newlines now — it reports the water's own geometry
+     as well as the release, because probe.html cannot answer for an
+     installed app and this is the only instrument that runs inside one */
+  white-space: pre-wrap;
 }
 
 .editor > .ftn-lyric    { font-style: italic; }
