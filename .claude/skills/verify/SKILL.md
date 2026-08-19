@@ -235,6 +235,27 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
   reading that made this plain) and the band has nothing to do with the
   keyboard. The readout flags `(keyboard)` when the two disagree.
 
+  **`floodBand()` runs in standalone only, and a browser tab must be left
+  alone.** The band is a standalone artefact — the status-bar height that
+  black-translucent pushed off the bottom of the web view — and a tab has
+  nothing of the kind. Safari's own bars sit outside the viewport at both ends
+  and take `theme-color`, which `floodChrome` ramps on the whole-screen average:
+  the right number for a strip at the top. Writing `--screen` in a tab buys
+  nothing and costs something, because `html` and `body` carry it and Safari
+  samples the page for its bars — so from v64 to v67 it handed them the colour
+  of the water's *bottom row* and Safari's bars stopped following the page the
+  way they had since v52. Reported, and a real regression. Gated on
+  `navigator.standalone || (display-mode: standalone)` now; prefer
+  `navigator.standalone` first, since the media query has answered "no" from
+  inside an installed app before (see the probe's own note).
+
+  **Which means every band test needs `addInitScript` to claim standalone**:
+  `Object.defineProperty(navigator, 'standalone', { get: () => true })` before
+  `goto`. Chromium is a tab, so without it `floodBand` correctly returns early
+  and five suites fail at once for the right reason — the tests lost their
+  premise, not the code. Assert the tab case too, in the same run: `body` pinned
+  to the theme through a whole hold while `theme-color` still ramps.
+
   **Test it against press length, and against the previous release.** Sample the
   canvas's real last row (averaged across x, composited over `--bg`) against
   `getComputedStyle(body).backgroundColor` every frame, for presses of ~150 ms,
