@@ -326,15 +326,38 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
   switch, then updates on reload and sticks again. That reads exactly like "the
   meta isn't being re-read", and it is not: the meta is fine.
 
-  Two dead ends, both walked, neither of them the cause. Rewriting `.content`
-  in place works in Safari — it is what the app did from its first commit, and
-  what `setThemeColor()` went back to doing. Replacing the element works too,
-  and shipped for one release on the theory that Safari watched the node; it
-  fixed nothing and it restarts the tint's ease, which the flood cannot afford.
-  Neither is the fix, so don't reach for either when this
-  recurs; check the manifest. Assert the meta's colour tracks the computed page
-  background across a theme switch, exactly one in `<head>`, and that
-  `manifest.webmanifest` has no `theme_color` key at all.
+  Removing that field is necessary and, it turns out, **not sufficient — and
+  the note that used to sit here was wrong about why.** It claimed rewriting
+  `.content` "was checked directly on a phone with probe.html rather than
+  assumed". It was checked there, but the probe reports `manifest linked: no`
+  unless its own toggle is on, and **the app always links one**. So the check
+  ran in a state the app never occupies. Reported symptom, later: Safari's bars
+  follow on a manual reload and never in between — a tint read once at parse and
+  then ignored, which is what having a manifest at all appears to cause.
+
+  **So the two mutations are not interchangeable, and each event wants a
+  different one.** Rewriting `.content` is the light touch; replacing the
+  element is the one mutation every engine is obliged to see. `setThemeColor()`
+  takes a `fresh` flag:
+  - **The flood rewrites.** It writes ten times as the tide rises, and replacing
+    the element each time restarts the browser's ease at every step so the tint
+    never settles.
+  - **A theme switch replaces**, and so does `dryChrome()` at the end of a
+    fall. Both are single deliberate events with no ease worth protecting, and
+    both are the moments Safari was ignoring.
+
+  **A replace orphans anything holding that node.** `setThemeColor()` re-queries
+  on every call for exactly this reason, and so does the probe's `tcMeta()`.
+  A MutationObserver bound to the *element* goes deaf the moment it is
+  detached — which is how `chrome2` reported `writes=0` after this landed, its
+  premise broken rather than the code. Observe `document.head` with `subtree`
+  instead.
+
+  Assert per event, not just per value: a theme switch produces a childList
+  mutation adding a new `theme-color` node and lands the theme exactly; the rise
+  produces several attribute rewrites and **zero** replaces; the fall ends on a
+  replace; and there is exactly one meta in `<head>` throughout. Also assert
+  `manifest.webmanifest` still has no `theme_color` key at all.
 
   None of this is visible in Chromium, which does not tint anything. Reproduce
   it on a phone with `probe.html`, whose experiment varies each candidate

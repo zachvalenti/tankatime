@@ -1537,7 +1537,9 @@ const water = (() => {
   function dryChrome() {
     chromeStep = -1;
     bandStep = -1;
-    setThemeColor(themeBg());
+    // the tide is over, so the ease is no longer worth protecting: land the
+    // theme colour the way a theme switch does, with a replace
+    setThemeColor(themeBg(), true);
     // removed rather than reset, so the stylesheet's var(--bg) governs again
     // and the dialog's own --screen rule can still win
     document.documentElement.style.removeProperty('--screen');
@@ -1724,30 +1726,40 @@ clearBtn.addEventListener('blur', cancelHold);
  * a line lands, a button lighting under the pointer — and the theme
  * simply arrives all at once, the way it looks like it should.
  */
-/* A browser that tints its own chrome to match the page reads
- * theme-color, and rewriting this attribute is enough for every engine
- * that does — Safari included, which was checked directly on a phone
- * with probe.html rather than assumed.
+/* A browser that tints its own chrome to match the page reads theme-color,
+ * and there are two ways to change it: rewrite this element's content, or
+ * replace the element. They are not equivalent, and which one is needed
+ * has been got wrong here twice.
  *
- * It was assumed once, in the other direction: the tint stopped
- * following a theme change, the meta looked like the suspect, and this
- * grew a version that replaced the whole element on the theory that
- * Safari watched the node and not the attribute. It doesn't, and that
- * wasn't the bug — manifest.webmanifest was declaring a theme_color of
- * its own, and a manifest, fetched after the document parses, takes the
- * tint over from the tag. The manifest declares none now.
+ * First it was blamed for a bug it wasn't causing. The tint stopped
+ * following a theme change, the meta looked like the suspect, and a version
+ * that replaced the whole element shipped on the theory that Safari watched
+ * the node. It fixed nothing, because the actual cause was
+ * manifest.webmanifest declaring a theme_color of its own: a manifest is
+ * fetched after the document parses and takes the tint over from the tag.
+ * That field is gone, and the light touch went back in.
  *
- * Which leaves the light touch, and the tide wants it: the flood writes
- * this ten times as it rises, and replacing the element each time would
- * restart the browser's own ease on the tint at every step.
+ * Then the light touch was over-trusted. The note here claimed rewriting
+ * was "checked directly on a phone with probe.html" — but the probe's own
+ * readout says `manifest linked: no` unless its manifest toggle is on, and
+ * the app *always* links one. So the check was run in a state the app never
+ * occupies, and removing theme_color never removed the manifest. Reported
+ * symptom: Safari's bars follow on a manual reload and never in between,
+ * which is a tint read once at parse and then ignored.
+ *
+ * So: the flood keeps the light touch, because it writes ten times as the
+ * tide rises and replacing the element each time would restart the
+ * browser's ease at every step and never settle. A theme switch — one
+ * deliberate event, no ease worth protecting — replaces the element, which
+ * is the one mutation every engine is obliged to see. `fresh` picks.
  */
-function setThemeColor(hex) {
+function setThemeColor(hex, fresh) {
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) { meta.setAttribute('content', hex); return; }
+  if (meta && !fresh) { meta.setAttribute('content', hex); return; }
   const made = document.createElement('meta');
   made.setAttribute('name', 'theme-color');
   made.setAttribute('content', hex);
-  document.head.appendChild(made);
+  if (meta) meta.replaceWith(made); else document.head.appendChild(made);
 }
 
 function applyTheme(name) {
@@ -1755,7 +1767,8 @@ function applyTheme(name) {
   root.classList.add('swapping');
   if (name === 'room') delete root.dataset.theme;
   else root.dataset.theme = name;
-  setThemeColor(THEMES[name]);
+  // a replace, not a rewrite: this is the event Safari was ignoring
+  setThemeColor(THEMES[name], true);
   try { localStorage.setItem(THEME_KEY, name); } catch (_) {}
   // two frames: one for the new palette to paint, one to be sure it has
   requestAnimationFrame(() => requestAnimationFrame(() =>
