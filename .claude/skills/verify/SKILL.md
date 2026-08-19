@@ -222,7 +222,31 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
   minus `innerHeight`. env() is what iOS shifted the view by, and it drops to 0
   in landscape where the status bar does too, which is right; the subtraction
   gets landscape wrong and `screen.height` does not reliably swap on rotation.
-  Resolved through `insetPx()`, cached per edge and cleared on resize.
+  Resolved through `insetPx()`, cached per edge and cleared on resize. For the
+  same reason `/version` reports the **layout** viewport rather than
+  `innerHeight`: a soft keyboard shrinks `innerHeight` to the visual viewport
+  (675 against a clientHeight of 797 on the reading that made this plain) and
+  the band has nothing to do with the keyboard. The readout flags `(keyboard)`
+  when the two disagree, so a screenshot taken mid-typing cannot be misread
+  again.
+
+  **Never let the channel ease.** `body` shipped with
+  `transition: background-color .25s ease` from long before any of this, to
+  soften a theme swap. The moment body became the channel that ease turned into
+  a quarter-second of lag on the band: `floodBand()` steps in ~190ms and
+  `FALL_MS` is 700, so on release the water drained and the band stayed lit —
+  a solid bar along the foot, reported and real. The palette ease belongs to
+  `.base`, the layer a theme swap is actually seen on, where it cannot lag
+  anything. Body keeps the `color` ease for the ink.
+
+  **Test the rendered colour, not the property.** The property was correct the
+  whole time this bug was visible; the *transition* was the bug, so any
+  assertion reading `--screen` or the inline style passes straight through it.
+  Composite the canvas's last row over `--bg` and compare it against
+  `getComputedStyle(body).backgroundColor` through the fall — the fix holds a
+  gap of 1/255, the old rule 39/255. Keep a contrast case that restores the
+  transition: a test that only ever sees the fixed rule cannot tell you it is
+  fixed.
 
   **The card's `::backdrop` cannot reach the band either** — same boundary, and
   that is how the band was identified in the first place. So

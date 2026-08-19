@@ -138,6 +138,9 @@ html {
   inset: 0;
   background: var(--bg);
   pointer-events: none;
+  /* the palette ease, moved here off body — this is the layer a theme swap
+     is actually seen on, and easing it cannot lag the band */
+  transition: background-color .25s ease;
 }
 
 .room {
@@ -207,8 +210,14 @@ body {
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   caret-color: var(--hit);
   -webkit-tap-highlight-color: transparent;
-  /* ease the palette swap when themes change */
-  transition: background-color .25s ease, color .25s ease;
+  /* The ink eases on a theme swap. The background deliberately does not:
+     body is the channel iOS reads the band below the viewport from, and an
+     ease on that colour is a quarter-second of lag on it. floodBand() steps
+     the band in ~190ms and the fall lasts 700ms, so easing here left the
+     band lit after the water had drained out from under it — a solid bar
+     along the foot on release, reported and real. The palette ease belongs
+     to what the eye actually sees, which is .base. */
+  transition: color .25s ease;
 }
 
 /* Held still for the one frame a theme changes on — see applyTheme().
