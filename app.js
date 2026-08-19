@@ -1435,12 +1435,28 @@ const water = (() => {
     const step = Math.round(cover * CHROME_STEPS);
     if (step === chromeStep || now - chromeAt < CHROME_MS) return;
     chromeStep = step; chromeAt = now;
-    setThemeColor(mixHex(themeBg(), tide, (step / CHROME_STEPS) * tideAlpha));
+    const wet = mixHex(themeBg(), tide, (step / CHROME_STEPS) * tideAlpha);
+    setThemeColor(wet);
+    /* The clock strip, and which lever actually moves it.
+     *
+     * With the opaque status bar the strip is iOS's to paint, and v61
+     * measured what it reads: at rest it wears the theme, but it ignored
+     * this very meta walking ten steps to the flooded colour — so whatever
+     * the bar consumes, it is not theme-color, live. The one candidate
+     * left in the page's hands is the root's own background-color value.
+     * Writing the mix there is invisible inside the view — body paints
+     * var(--bg) over all of it — so this line exists solely for the
+     * status bar to read. If the strip still holds still, the bar is read
+     * at launch only, and no page can move it mid-session.
+     */
+    document.documentElement.style.backgroundColor = wet;
   }
 
   function dryChrome() {
     chromeStep = -1;
     setThemeColor(themeBg());
+    // back to the stylesheet's var(--bg), so a theme change still lands
+    document.documentElement.style.backgroundColor = '';
   }
 
   /* Size the canvas in device pixels, capped at 2× — sharp on phone
