@@ -1437,19 +1437,24 @@ const water = (() => {
     chromeStep = step; chromeAt = now;
     const wet = mixHex(themeBg(), tide, (step / CHROME_STEPS) * tideAlpha);
     setThemeColor(wet);
-    /* The clock strip, and which lever actually moves it.
+    /* The clock strip, and what actually paints it — measured one lever
+     * per release. v61: this meta walked ten steps to the flooded colour
+     * and the strip held, so it is not theme-color. v62: the root's
+     * background walked too and the strip still held — yet a theme switch
+     * recolours it instantly, live, no relaunch. What a theme switch
+     * changes that those walks did not is body's background: iOS derives
+     * the bar from the document's background colour, and an opaque body
+     * tops that derivation, so a value written under it never surfaces.
      *
-     * With the opaque status bar the strip is iOS's to paint, and v61
-     * measured what it reads: at rest it wears the theme, but it ignored
-     * this very meta walking ten steps to the flooded colour — so whatever
-     * the bar consumes, it is not theme-color, live. The one candidate
-     * left in the page's hands is the root's own background-color value.
-     * Writing the mix there is invisible inside the view — body paints
-     * var(--bg) over all of it — so this line exists solely for the
-     * status bar to read. If the strip still holds still, the bar is read
-     * at launch only, and no page can move it mid-session.
+     * So the flood writes body — and the page cannot be allowed to wear
+     * that colour, or everything under the translucent water would darken
+     * past the design. .room carries the visible base coat instead (see
+     * style.css): body is what iOS reads, .room is what the eye sees,
+     * identical at rest and split only here. The root write stays because
+     * the derivation may blend both, and it costs one line.
      */
     document.documentElement.style.backgroundColor = wet;
+    document.body.style.backgroundColor = wet;
   }
 
   function dryChrome() {
@@ -1457,6 +1462,7 @@ const water = (() => {
     setThemeColor(themeBg());
     // back to the stylesheet's var(--bg), so a theme change still lands
     document.documentElement.style.backgroundColor = '';
+    document.body.style.backgroundColor = '';
   }
 
   /* Size the canvas in device pixels, capped at 2× — sharp on phone

@@ -115,6 +115,24 @@ html {
   /* iOS standalone: a bottom-edge rubber-band can wedge the scroll */
   overscroll-behavior-y: none;
 
+  /* The page's visible base coat, split from body's on purpose.
+   *
+   * iOS paints the standalone status bar from the document's background
+   * colour, established by elimination on a real phone: a theme-color
+   * walk did not move the strip (v61), a walk of html's background did
+   * not either (v62), yet a theme switch recolours it instantly — and
+   * body's background is the one colour a theme switch changes that
+   * those walks did not. An opaque body tops that derivation, so a value
+   * written beneath it never surfaces.
+   *
+   * So body is the channel the flood writes for the bar to read (see
+   * floodChrome), and this is the colour the room actually shows. The
+   * two are identical at rest — both var(--bg) — and split only while
+   * the water is up. The mask fades this coat into body's at the edges,
+   * invisible when they agree and diverging only mid-flood, exactly
+   * where the water already is. */
+  background: var(--bg);
+
   /* The writing fades out at the two edges the app doesn't own.
    *
    * At the foot sits the toolbar, on every device; across the top of a
