@@ -208,27 +208,49 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
   tide by the time it reaches the bottom of the screen, so a solid band of the
   flooded colour is what the crests above resolve to anyway.
 
-  **Drive the band off the surface, never off `cover`.** v64 gave it the same
-  whole-screen ramp as the chrome and it faded over the full three seconds —
-  reported, correctly, as the wash "not beginning from the very bottom of the
-  screen", because the band is at the very bottom and the surface crosses it in
-  the first breath. `floodBand()` ramps on the surface's own distance below the
-  page instead: ten to sixteen steps between roughly 20 ms and 215 ms, landing
-  exactly on the flooded colour and holding. Assert it with a MutationObserver
-  on the root's `style` rather than by polling — the whole window is ~190 ms and
-  a 70 ms poll catches two samples and calls a working ramp a jump.
+  **Do not model where the water is. Take the water's own bottom row.** Two
+  models shipped and both left a seam:
+  - v64 ramped the band off the whole-screen `cover`, so it faded across all
+    three seconds — reported, correctly, as the wash not beginning at the very
+    bottom of the screen.
+  - v65 ramped it off the surface's distance below the page. Closer, still
+    wrong: the surface enters the band ~70 ms in and does not reach the
+    canvas's last row until ~210 ms, so for that window a tinted band sat
+    under a dry page. A full hold floods over it unseen; **a short press
+    releases inside it** and the seam then holds for the whole 700 ms fall,
+    which is how it was found.
 
-  **The band's height is `env(safe-area-inset-top)`**, not `screen.height`
-  minus `innerHeight`. env() is what iOS shifted the view by, and it drops to 0
-  in landscape where the status bar does too, which is right; the subtraction
-  gets landscape wrong and `screen.height` does not reliably swap on rotation.
-  Resolved through `insetPx()`, cached per edge and cleared on resize. For the
-  same reason `/version` reports the **layout** viewport rather than
-  `innerHeight`: a soft keyboard shrinks `innerHeight` to the visual viewport
-  (675 against a clientHeight of 797 on the reading that made this plain) and
-  the band has nothing to do with the keyboard. The readout flags `(keyboard)`
-  when the two disagree, so a screenshot taken mid-typing cannot be misread
-  again.
+  v67 has no model. Each layer counts what fraction of the canvas's last row it
+  covered while being drawn — free, inside the loop that was already walking the
+  surface — and those compose exactly the way the layers do
+  (`1 - Π(1 - alpha·cover)`). The band cannot disagree with the water because it
+  comes from the numbers that drew it. Quantised to 16 steps and, unlike the
+  chrome, **deliberately not time-throttled**: the whole arrival is a couple of
+  hundred milliseconds and a throttle there is what puts the lag back.
+
+  With no model, the band needs no height, so `env(safe-area-inset-top)` is no
+  longer load-bearing for colour — but `/version` still reports the **layout**
+  viewport rather than `innerHeight`, because a soft keyboard shrinks
+  `innerHeight` to the visual viewport (675 against a clientHeight of 797 on the
+  reading that made this plain) and the band has nothing to do with the
+  keyboard. The readout flags `(keyboard)` when the two disagree.
+
+  **Test it against press length, and against the previous release.** Sample the
+  canvas's real last row (averaged across x, composited over `--bg`) against
+  `getComputedStyle(body).backgroundColor` every frame, for presses of ~150 ms,
+  300 ms, 900 ms and a full hold. v67 holds ≤3/255 at every length; the v66 tree
+  gives 26-43/255 on the short ones. Serve the previous tree from
+  `git archive HEAD` on another port for the contrast — a test that only sees
+  the current build cannot tell you the seam is gone.
+
+  **`dryChrome()` is the only path that ends a flood.** It resets both step
+  counters, restores `theme-color`, and *removes* the `--screen` override
+  (removing, not resetting, so `var(--bg)` governs again and the dialog rule can
+  still win). The edit that rewrote `floodBand` deleted it: `stop()` then threw
+  on every release, the water cleared and nothing else did, and `--screen` froze
+  on whatever theme was live — which outranks `var(--bg)`, so themes stopped
+  changing too. Four suites caught it at once. If several unrelated colour
+  assertions fail together, look here first.
 
   **Never let the channel ease.** `body` shipped with
   `transition: background-color .25s ease` from long before any of this, to

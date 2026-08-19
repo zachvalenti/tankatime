@@ -1453,48 +1453,65 @@ const water = (() => {
     setThemeColor(mixHex(themeBg(), tide, (step / CHROME_STEPS) * tideAlpha));
   }
 
-  /* The band iOS keeps below the page, and why it needs its own clock.
+  /* The band iOS keeps below the page, and the one rule that makes it
+   * seamless: it is not a model of where the water is, it *is* the water's
+   * own bottom edge.
    *
    * black-translucent moves the web view up under the status bar without
    * making it taller, so the status bar's height reappears as a band at the
-   * FOOT, outside the viewport. Nothing in the page can paint it — proven
-   * by the about dialog's ::backdrop, which covers the viewport by
-   * definition and stops on the same line. What iOS does do is paint it
-   * from the document's background colour, so --screen carries that colour
-   * and nothing else does (html and body take it; .base takes --bg and is
-   * what the eye reads).
+   * FOOT, outside the viewport. Nothing in the page can paint it — proven by
+   * the about dialog's ::backdrop, which covers the viewport by definition
+   * and stops on the same line. What iOS does do is paint it from the
+   * document's background colour, so --screen carries that colour and
+   * nothing else does (html and body take it; .base takes --bg and is what
+   * the eye reads).
    *
-   * The mistake worth not repeating: this was first driven off the same
-   * whole-screen `cover` as the chrome, and so it faded over the full three
-   * seconds. But the band is at the very bottom — the surface crosses it in
-   * the first breath of the hold and everything after that is full tide. So
-   * it is driven off the surface's own position instead: it fills exactly as
-   * the surface passes through it, which is what makes the wash read as
-   * starting at the true bottom edge of the screen rather than 47px up.
+   * Two wrong versions are worth remembering, because each looked right in
+   * the test that was aimed at it:
+   *   - v64 ramped this off the whole-screen `cover`, so it faded across all
+   *     three seconds instead of filling as the water arrived.
+   *   - v65 ramped it off the surface's distance below the page. Closer, and
+   *     still wrong: it lit the band while the canvas was painting nothing.
+   *     The surface enters the band about 70ms in and does not reach the
+   *     canvas's last row until about 210ms, so for that window there was a
+   *     tinted band under a dry page. A full hold floods over it and nobody
+   *     sees it; a short press releases inside it and the seam then sits
+   *     there for the whole 700ms fall. Which is exactly how it was found.
    *
-   * The band's height is the status-bar inset, not screen.height minus
-   * innerHeight: env() is what iOS shifted the view by, and it goes to 0 in
-   * landscape where the status bar does too — which is correct, and which a
-   * screen-height subtraction gets wrong.
+   * So: no model. Each layer reports what fraction of the canvas's last row
+   * it actually covered while being drawn, those compose the same way the
+   * layers themselves do, and the band takes the result. It cannot disagree
+   * with the water because it comes from the numbers that drew the water —
+   * nothing at rest, faint while the water is faint, full tide at full tide,
+   * and true through every frame of the fall.
    */
   const BAND_STEPS = 16;
   let bandStep = -1;
 
-  function floodBand(base, h, dpr) {
+  function floodBand() {
     if (!HEX.test(tide) || !HEX.test(themeBg())) return;
-    const band = insetPx('top') * dpr;
-    // how far the surface still sits below the page's bottom edge
-    const below = base - h;
-    const t = band > 0
-      ? 1 - Math.min(Math.max(below / band, 0), 1)   // crossing the band
-      : (below <= 0 ? 1 : 0);                        // no band to cross
-    const step = Math.round(t * BAND_STEPS);
+    // what is left of the page through every layer at that last row
+    let clear = 1;
+    for (const L of layers) clear *= 1 - L.alpha * (L.cover || 0);
+    const alpha = 1 - clear;
+    /* Quantised, so a phone's status bar is not asked to repaint sixty times
+     * a second. Sixteen steps across a quarter-opacity wash is finer than
+     * the eye, and unlike the chrome this takes no time throttle: the whole
+     * arrival happens inside a couple of hundred milliseconds, and a
+     * throttle there is what would put the lag back. */
+    const step = Math.round((alpha / tideAlpha) * BAND_STEPS);
     if (step === bandStep) return;
     bandStep = step;
     document.documentElement.style.setProperty('--screen',
       mixHex(themeBg(), tide, (step / BAND_STEPS) * tideAlpha));
   }
 
+  // Everything the flood touched outside the canvas, put back. Called from
+  // stop(), so it is the only path that ends a flood: if it goes missing the
+  // water still clears and nothing else does — the chrome keeps its last
+  // tint and --screen keeps its last value, which then outranks var(--bg)
+  // and freezes the band on whatever theme was live. (It did go missing once,
+  // in the edit that rewrote floodBand, and the suite caught it here.)
   function dryChrome() {
     chromeStep = -1;
     bandStep = -1;
@@ -1553,10 +1570,9 @@ const water = (() => {
     const base = (h + 70 * dpr) - (h + 170 * dpr) * p;
     const swell = 1 + fury * 1.5;
     const rush = 1 + fury * 3;
-    // two frames, two clocks: the chrome averages the whole screen (see
-    // floodChrome), the band tracks the surface crossing it (floodBand)
+    // the chrome averages the whole screen; the band is handled after the
+    // draw, from what the water actually put on its last row
     floodChrome(Math.max(0, Math.min(1, (h - base) / h)), now);
-    floodBand(base, h, dpr);
 
     ctx.clearRect(0, 0, w, h);
     ctx.fillStyle = tide;
@@ -1565,19 +1581,28 @@ const water = (() => {
       ctx.beginPath();
       ctx.moveTo(0, h);
       const step = 8 * dpr;
+      // and while walking the surface anyway: how much of the canvas's very
+      // last row this layer covers. floodBand() needs it, and counting it
+      // here is free where measuring it afterwards would not be
+      let wet = 0, seen = 0;
       for (let x = 0; x <= w + step; x += step) {
         let y = base + L.sink * dpr;
         for (const wv of L.waves) {
           y += wv.amp * dpr * swell * Math.sin(x / (wv.len * dpr) * TAU + wv.ph);
         }
         ctx.lineTo(x, y);
+        seen++;
+        if (y <= h) wet++;
       }
+      L.cover = seen ? wet / seen : 0;
       ctx.lineTo(w, h);
       ctx.closePath();
       ctx.fill();
       for (const wv of L.waves) wv.ph += wv.spd * rush * dt;
     }
     ctx.globalAlpha = 1;
+    // the band continues the water's bottom edge — see floodBand()
+    floodBand();
     // requestAnimationFrame: the browser calls frame() again right
     // before the next repaint — the loop only runs while water shows
     raf = requestAnimationFrame(frame);
