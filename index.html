@@ -19,30 +19,29 @@
 <!-- iOS-specific: run full-screen when launched from the home screen -->
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<!-- default, after a tour through the alternatives, and each stop taught
-     something.
-     black-translucent lays the writing under the clock — but iOS sizes the
-     web view at screen minus status bar and only shifts it up, so the
-     status bar's height falls off the BOTTOM of the screen as a dead strip
-     no page paint can reach. Elements clip at its edge (the clear-hold
-     water and the about dialog's ::backdrop cut on the same line, which is
-     what identified it), and even the root's own background could not land
-     there: v53 through v59 all tried, because those pixels were never the
-     page's. Any opaque style sits the view BELOW the clock instead, which
-     is what makes the water start at the true bottom edge.
-     black proved that geometry and paid for it with a flat black clock
-     strip — right shape, dead colour. default hands that strip to
-     theme-color on modern iOS: the bar wears the colour app.js already
-     maintains per theme, iOS picks light or dark clock text to match, and
-     the clear-hold flood walks the bar with the tide (floodChrome). The
-     top follows the page again in colour — though not in writing: no
-     opaque style lets text run under the clock, and translucent's price
-     for that was the dead strip at the foot.
-     iOS reads this when the icon is ADDED: changing it does nothing to an
-     installed copy, the app must be re-added to the home screen. Pre-15
-     iOS ignores theme-color here and shows a system bar; the bottom stays
-     right regardless. -->
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<!-- black-translucent, and the tour through the alternatives is worth
+     keeping because each stop measured something.
+     iOS gives a standalone page 797px of an 844 screen and never more.
+     Translucent positions that box at the top, under the clock; every
+     opaque style positions it below the clock. So the page paints one
+     47px band and iOS paints the other — it cannot have both, which is
+     what v53-v59 spent themselves proving (the water, the about
+     dialog's ::backdrop and even the root's background all stop on the
+     same line).
+     Translucent is the better half to own: the writing and the water
+     really do run under the clock, and the band iOS keeps is at the
+     FOOT, where iOS paints it from the page's own background colour —
+     cream under the paper theme, measured. So --screen drives that
+     colour and the foot follows the tide (see floodChrome). It can only
+     ever be flat there, and flat is right: the water is at full tide by
+     the time it reaches the bottom, so a solid band of the flooded
+     colour is exactly what the waves above it resolve to.
+     black and default were the other half of the trade and shipped as
+     v60/v61: bottom edge owned, clock band iOS's — and iOS painted it
+     black regardless of theme, which is the wrong half to lose.
+     iOS reads this when the icon is ADDED: an installed copy keeps its
+     geometry until the app is deleted and re-added. -->
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Tanka">
 <link rel="stylesheet" href="style.css">
 </head>
@@ -52,6 +51,14 @@
      'position: fixed' is fixed to a viewport the keyboard makes the
      browser slide around, so anything pinned to an edge goes wandering
      the moment the page itself can scroll. Nothing here can. -->
+<!-- The paper the writing sits on, and the reason it is its own element:
+     body carries the colour iOS derives the band it owns from, so the
+     flood drives body — and the page cannot wear that colour or every
+     line would darken under the translucent water. This layer is what
+     the eye reads as the page. Unmasked on purpose: the mask belongs to
+     .room and to the writing inside it, and a mask over a background is
+     what put a visible seam across the edges at v63. -->
+<div class="base" aria-hidden="true"></div>
 <div class="room" id="room">
 <main class="page" id="page">
   <div class="doc" id="doc">

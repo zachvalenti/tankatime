@@ -49,6 +49,17 @@
      The foot is here because the bar is on every device. The top is zero
      here and given a height only under (pointer: coarse) below: a desktop
      has nothing across the top of the window to hide from. */
+  /* Two colours, two jobs, and keeping them apart is what finally made
+     the screen one thing.
+     --bg is the page: the paper the writing sits on, what .base paints,
+     what the eye reads. It only ever changes with the theme.
+     --screen is what iOS shows in the 47px band it owns at the foot. It
+     derives that from the document's background colour, so html and body
+     carry --screen and nothing else does. At rest the two are identical;
+     the flood moves --screen alone, which is why the band can follow the
+     tide without the water double-darkening the writing. */
+  --screen: var(--bg);
+
   --hide-top: 0px;
   --show-top: 0px;
   --hide-bot: calc(var(--foot) + 1.9rem);
@@ -104,8 +115,21 @@ html, body {
   overflow: hidden;
 }
 
+/* html and body are the channel, not the picture: iOS derives the band it
+   owns from the document's background colour, and both of these are hidden
+   behind .base inside the viewport, so moving them is invisible to the
+   page and visible only in the band. */
 html {
+  background: var(--screen);
+}
+
+/* the page itself — fixed to the viewport, under the writing, over the
+   channel, and deliberately outside the mask */
+.base {
+  position: fixed;
+  inset: 0;
   background: var(--bg);
+  pointer-events: none;
 }
 
 .room {
@@ -115,23 +139,10 @@ html {
   /* iOS standalone: a bottom-edge rubber-band can wedge the scroll */
   overscroll-behavior-y: none;
 
-  /* The page's visible base coat, split from body's on purpose.
-   *
-   * iOS paints the standalone status bar from the document's background
-   * colour, established by elimination on a real phone: a theme-color
-   * walk did not move the strip (v61), a walk of html's background did
-   * not either (v62), yet a theme switch recolours it instantly — and
-   * body's background is the one colour a theme switch changes that
-   * those walks did not. An opaque body tops that derivation, so a value
-   * written beneath it never surfaces.
-   *
-   * So body is the channel the flood writes for the bar to read (see
-   * floodChrome), and this is the colour the room actually shows. The
-   * two are identical at rest — both var(--bg) — and split only while
-   * the water is up. The mask fades this coat into body's at the edges,
-   * invisible when they agree and diverging only mid-flood, exactly
-   * where the water already is. */
-  background: var(--bg);
+  /* No background here on purpose. It had one for exactly one release and
+     the mask below fades whatever it is given — which laid a visible seam
+     across both edges the moment the flood made this colour differ from
+     body's. The page is .base now; the mask is for the writing. */
 
   /* The writing fades out at the two edges the app doesn't own.
    *
@@ -174,7 +185,7 @@ html {
 html:has(dialog[open]) .room { overflow: hidden; }
 
 body {
-  background: var(--bg);
+  background: var(--screen);
   color: var(--ink);
   /* ui-monospace = whatever monospace the OS considers native */
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
@@ -499,30 +510,16 @@ html.swapping, html.swapping * { transition: none !important; }
  * this identical to the old rule everywhere the old rule was right. The
  * bitmap follows on its own — fit() measures this box, not the window.
  */
+/* The water. Plain 100% now: paint is clipped to the viewport whatever
+   this says, so the env() sums and max() overdraws that v54-v59 piled on
+   here were buying nothing. The band past the viewport is --screen's. */
 .flood {
   position: fixed;
   top: 0;
   left: 0;
   width: 100%;
-  height: calc(100% + env(safe-area-inset-bottom));
+  height: 100%;
   pointer-events: none;
-}
-
-/* And a phone gets the strip cleared whether or not env() will say how
-   tall it is.
- *
- * env(safe-area-inset-*) resolves to 0 unless viewport-fit=cover is
- * actually in force, so the line above is only as good as that promise —
- * and the dry band survived it on a real installed app, which says the
- * promise wasn't kept there. max() stops asking: the true inset where it
- * is reported, or enough to clear the tallest home bar where it isn't.
- *
- * The overdraw hangs off the bottom of the screen where nothing can see
- * it. It costs the tide about a tenth of a second of extra climb before
- * the surface reaches the visible edge, and nothing else. A desktop keeps
- * the exact rule above — no home bar, nothing to clear. */
-@media (pointer: coarse) {
-  .flood { height: calc(100% + max(env(safe-area-inset-bottom), 34px)); }
 }
 
 /* the ? is the only way into the card; let it sit a little plainer and

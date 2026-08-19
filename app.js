@@ -1437,32 +1437,25 @@ const water = (() => {
     chromeStep = step; chromeAt = now;
     const wet = mixHex(themeBg(), tide, (step / CHROME_STEPS) * tideAlpha);
     setThemeColor(wet);
-    /* The clock strip, and what actually paints it — measured one lever
-     * per release. v61: this meta walked ten steps to the flooded colour
-     * and the strip held, so it is not theme-color. v62: the root's
-     * background walked too and the strip still held — yet a theme switch
-     * recolours it instantly, live, no relaunch. What a theme switch
-     * changes that those walks did not is body's background: iOS derives
-     * the bar from the document's background colour, and an opaque body
-     * tops that derivation, so a value written under it never surfaces.
+    /* The band iOS owns at the foot, which it paints from the document's
+     * background colour — cream under the paper theme, measured. One
+     * property carries that colour and nothing else does, so moving it
+     * cannot touch the page: html and body take --screen, .base takes
+     * --bg, and .base is what the eye reads (see style.css).
      *
-     * So the flood writes body — and the page cannot be allowed to wear
-     * that colour, or everything under the translucent water would darken
-     * past the design. .room carries the visible base coat instead (see
-     * style.css): body is what iOS reads, .room is what the eye sees,
-     * identical at rest and split only here. The root write stays because
-     * the derivation may blend both, and it costs one line.
+     * Flat there rather than waves, and flat is right: the water is at
+     * full tide by the time it reaches the bottom of the screen, so a
+     * solid band of the flooded colour is what the crests above it
+     * resolve to anyway.
      */
-    document.documentElement.style.backgroundColor = wet;
-    document.body.style.backgroundColor = wet;
+    document.documentElement.style.setProperty('--screen', wet);
   }
 
   function dryChrome() {
     chromeStep = -1;
     setThemeColor(themeBg());
     // back to the stylesheet's var(--bg), so a theme change still lands
-    document.documentElement.style.backgroundColor = '';
-    document.body.style.backgroundColor = '';
+    document.documentElement.style.removeProperty('--screen');
   }
 
   /* Size the canvas in device pixels, capped at 2× — sharp on phone

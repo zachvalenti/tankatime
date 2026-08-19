@@ -179,44 +179,50 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
   itself is 47px short and shifted up under the clock; the strip below it
   belongs to iOS.
 
-  **The fix is geometry, not paint**: `apple-mobile-web-app-status-bar-style`
-  is `default` now, not `black-translucent`. Any opaque style sits the web view
-  *below* the clock, so the view's bottom edge is the screen's bottom edge and
-  the water starts at the true bottom — verified on-device at v60
-  (`covers viewport`, `sa-top 0px`). `black` shipped first and proved the
-  geometry at the cost of a flat black clock strip; `default` keeps the
-  geometry and gets the strip painted in the **theme's colour with matching
-  clock text — confirmed on-device at v61**. What v61 also measured, by
-  accident and usefully: during a flood the theme-color meta provably walked
-  to the flooded colour (the suite pins the exact value) and **the strip did
-  not move** — so whatever iOS paints a standalone status bar from, it is not
-  the meta, live. v62 walked the root's `background-color` too and the strip
-  still held — but the `◐` theme-switch observation came back **live**: the
-  strip recolours instantly, no relaunch. What a theme switch changes that
-  neither walk did is **body's background**: iOS derives the bar from the
-  document's background colour, and an opaque body tops that derivation, so a
-  value written under it never surfaces. v63 therefore writes the flooded mix
-  to **body** (and the root, since the derivation may blend both; both inline,
-  cleared on `stop()`) — and because body's colour is also the page the eye
-  sees under translucent water, `.room` now carries the **visible base coat**
-  (`background: var(--bg)`): body is what iOS reads, `.room` is what the eye
-  sees, identical at rest and split only mid-flood. Assert exactly that split:
-  at rest both computed to the theme with no inline colours; at full flood
-  body's inline equals the meta's flooded value while `.room` stays on the
-  theme; both inlines cleared on `stop()`; a theme switch lands on both.
-  Pre-15 iOS shows a system bar; the bottom stays right regardless.
-  What does *not* come back under any opaque style is writing under the clock —
-  that is translucent's feature, and the dead strip at the foot is its price.
-  The coarse top-fade collapses to the small `env()=0` fade every other phone
-  gets, which is correct now that nothing sits over the writing.
+  **The constraint, and it is not negotiable.** iOS gives a standalone page
+  **797px of an 844 screen** and never more. `black-translucent` positions that
+  box at the top, under the clock, leaving a 47px band at the **foot**; every
+  opaque style (`black`, `default`) positions it below the clock, leaving the
+  band at the **top**. The page paints one band and iOS paints the other —
+  there is no configuration that gets both, and v53–v59 exist because that was
+  not understood. Stop looking for one.
 
-  **This meta is read when the icon is added to the home screen.** Changing it
-  does nothing to an installed copy — the app must be deleted and re-added to
-  take the new geometry, which is also why the old geometry survives on any
-  device that never reinstalls. `/version` prints the verdict either way:
-  `covers viewport` (opaque-bar geometry, or any normal browser), versus
-  `covers viewport; 47px below it is iOS's` (the translucent dead strip), or
-  `N SHORT of viewport` (a real canvas bug — none known).
+  **Which band to keep is a design choice, and it is made.** `black-translucent`:
+  the writing and the water really run under the clock, and the band iOS keeps
+  is at the foot where **iOS paints it from the document's background colour**
+  — cream under the paper theme, measured on-device at v55. `black`/`default`
+  shipped as v60/v61 to prove the opposite geometry and did (`covers viewport`,
+  `sa-top 0px`, water to the true bottom) — but iOS painted the clock band
+  black regardless of theme, which is the worse half to lose.
+
+  **So the frames are separated** (v64). Two custom properties, two jobs:
+  - `--bg` is the **page**: the paper the writing sits on. `.base` paints it —
+    a fixed, unmasked, viewport-sized layer under the writing. Changes with the
+    theme only.
+  - `--screen` is the **band iOS owns**. `html` and `body` carry it and nothing
+    else does; both sit behind `.base` inside the viewport, so moving it is
+    invisible to the page and visible only in the band. `floodChrome()` drives
+    it with the tide.
+
+  Flat in the band rather than waves, and flat is correct: the water is at full
+  tide by the time it reaches the bottom of the screen, so a solid band of the
+  flooded colour is what the crests above resolve to anyway.
+
+  Two things this refactor removed, both cargo:
+  - `.room` had a background for exactly one release (v63). **The mask fades
+    whatever `.room` is given**, so the moment the flood made that colour differ
+    from body's it laid a visible seam across both edges. The mask is for the
+    writing; the page is `.base`.
+  - `.flood` is plain `height: 100%` again. **Paint clips to the viewport
+    whatever the box says**, so the `env()` sums and `max()` overdraws stacked
+    up across v54–v59 were buying nothing. `/version` still prints the box, and
+    `covers viewport` is the only verdict that means anything.
+
+  Assert: at rest `html`, `body` and `.base` all compute to the theme and
+  `.room` paints nothing; at full flood `--screen` equals the meta's flooded
+  value with `html`/`body` following and `.base` untouched; `removeProperty` on
+  stop rather than an overwrite; a theme switch lands on both; and the canvas
+  has ink in its first and last row.
 
 - **The manifest must declare no `theme_color`.** Safari tints its own toolbar
   from `theme-color`, and `manifest.webmanifest` deliberately leaves the field
