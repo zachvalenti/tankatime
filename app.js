@@ -540,9 +540,20 @@ function geometry() {
     const v = getComputedStyle(geometry.cell).height;
     return !v || v === 'auto' ? '(none)' : v;
   };
+  /* Where the viewport's bottom edge really sits depends on the status
+   * bar style. black-translucent shifted the view up under the clock and
+   * left a dead strip below the viewport that no page paint could reach —
+   * the v53–v59 chase. The opaque bar sits the view below the clock, so
+   * the viewport's bottom IS the screen's bottom. Judge against the
+   * viewport, and name the dead strip when the geometry says it exists. */
+  const vp = innerHeight, below = screen.height - vp;
+  const verdict = bottom < vp ? `${vp - bottom} SHORT of viewport`
+    : below > 0 && inset('top') !== '0px'
+      ? `covers viewport; ${below}px below it is iOS's`
+      : 'covers viewport';
   return '\n' +
-    `flood ${Math.round(r.top)}→${bottom} of ${screen.height}` +
-    ` ${bottom >= screen.height ? 'reaches' : (screen.height - bottom) + ' SHORT'}\n` +
+    `flood ${Math.round(r.top)}→${bottom} vp ${vp} screen ${screen.height}` +
+    ` ${verdict}\n` +
     // fit() only runs while water is on screen, so before the first hold
     // this is a canvas's untouched default and says nothing about the app
     `bitmap ${flood.width}×${flood.height}` +
@@ -1424,26 +1435,12 @@ const water = (() => {
     const step = Math.round(cover * CHROME_STEPS);
     if (step === chromeStep || now - chromeAt < CHROME_MS) return;
     chromeStep = step; chromeAt = now;
-    const wet = mixHex(themeBg(), tide, (step / CHROME_STEPS) * tideAlpha);
-    setThemeColor(wet);
-    /* And the strip the page cannot paint into.
-     *
-     * An installed iOS app clips elements to a layout viewport that is the
-     * screen less the status bar, so the canvas stops short of the foot of
-     * the screen however tall it is made — three attempts at its height
-     * moved nothing, and the about dialog's ::backdrop is cut on the same
-     * line, which is what proved it. The root's background-color is the one
-     * thing that still covers the whole screen (see the html rule), so it
-     * takes the same colour the chrome does. Flat, not waves: it is 47px
-     * behind the home indicator, and the tide it belongs to is above it. */
-    document.documentElement.style.backgroundColor = wet;
+    setThemeColor(mixHex(themeBg(), tide, (step / CHROME_STEPS) * tideAlpha));
   }
 
   function dryChrome() {
     chromeStep = -1;
     setThemeColor(themeBg());
-    // back to the stylesheet's var(--bg), so a theme change still lands
-    document.documentElement.style.backgroundColor = '';
   }
 
   /* Size the canvas in device pixels, capped at 2× — sharp on phone
