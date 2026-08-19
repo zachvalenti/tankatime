@@ -185,11 +185,21 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
   the water starts at the true bottom — verified on-device at v60
   (`covers viewport`, `sa-top 0px`). `black` shipped first and proved the
   geometry at the cost of a flat black clock strip; `default` keeps the
-  geometry and hands the strip to **`theme-color`, which modern iOS (15+)
-  paints the standalone status bar from, live** — so the bar wears the theme
-  and `floodChrome()` walks it with the tide, the very machinery built for
-  Safari's chrome in v52. iOS picks light or dark clock text from the colour.
-  Pre-15 iOS shows a system bar instead; the bottom stays right regardless.
+  geometry and gets the strip painted in the **theme's colour with matching
+  clock text — confirmed on-device at v61**. What v61 also measured, by
+  accident and usefully: during a flood the theme-color meta provably walked
+  to the flooded colour (the suite pins the exact value) and **the strip did
+  not move** — so whatever iOS paints a standalone status bar from, it is not
+  the meta, live. v62 writes the flooded mix to the root's own
+  `background-color` (inline, cleared on `stop()`) — the one remaining
+  page-side lever, invisible inside the view because body paints `var(--bg)`
+  over everything; it exists solely for the bar to read. If the strip still
+  holds, one observation disambiguates: switch themes with `◐` mid-session.
+  A strip that follows without a relaunch means something is live and the
+  lever is wrong; one that waits for the next launch means the bar is read
+  at launch only and no page can animate it — then the static theme bar is
+  the endpoint. Pre-15 iOS shows a system bar; the bottom stays right
+  regardless.
   What does *not* come back under any opaque style is writing under the clock —
   that is translucent's feature, and the dead strip at the foot is its price.
   The coarse top-fade collapses to the small `env()=0` fade every other phone
