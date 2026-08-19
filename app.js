@@ -556,7 +556,11 @@ function geometry() {
    * the v53–v59 chase. The opaque bar sits the view below the clock, so
    * the viewport's bottom IS the screen's bottom. Judge against the
    * viewport, and name the dead strip when the geometry says it exists. */
-  const vp = innerHeight, below = screen.height - vp;
+  /* the LAYOUT viewport, not innerHeight: a soft keyboard shrinks
+   * innerHeight to the visual viewport (675 against 797 on the reading that
+   * made this obvious) and the band has nothing to do with the keyboard */
+  const vp = document.documentElement.clientHeight;
+  const below = screen.height - vp;
   const verdict = bottom < vp ? `${vp - bottom} SHORT of viewport`
     : below > 0 && inset('top') !== '0px'
       ? `covers viewport; ${below}px below it is iOS's`
@@ -570,7 +574,8 @@ function geometry() {
     `${flood.width === 300 && flood.height === 150 ? ' (idle)' : ''}` +
     ` box ${Math.round(r.width)}×${Math.round(r.height)}\n` +
     `inner ${innerHeight} clientH ${document.documentElement.clientHeight}` +
-    ` screen ${screen.height}\n` +
+    ` screen ${screen.height}` +
+    `${innerHeight < document.documentElement.clientHeight ? ' (keyboard)' : ''}\n` +
     `sa-top ${inset('top')} sa-bot ${inset('bottom')}` +
     ` ${navigator.standalone ? 'standalone' : 'browser'}` +
     `${matchMedia('(display-mode: standalone)').matches ? '+dm' : ''}`;
