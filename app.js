@@ -1315,11 +1315,29 @@ const water = (() => {
     setThemeColor(themeBg());
   }
 
-  // size the canvas in device pixels, capped at 2× — sharp on phone
-  // screens without quadrupling the pixels to fill
+  /* Size the canvas in device pixels, capped at 2× — sharp on phone
+   * screens without quadrupling the pixels to fill.
+   *
+   * Measured off the canvas's own box, not off the window. Those are the
+   * same number on a desktop and they are not the same number on a
+   * phone: a fixed element's 100% resolves against the *large* viewport,
+   * the one you get with the browser's bars hidden, while innerHeight
+   * reports the viewport you can currently see. Sizing the bitmap from
+   * the window then hands the compositor a short bitmap to stretch over
+   * a tall box, and the stretch is the bug — every wavelength and
+   * amplitude comes out scaled by a factor no part of this file knows
+   * about, and the headroom that keeps the surface below the bottom edge
+   * at rest grows with it, so the tide spends longer than it should
+   * climbing to the edge before any water shows.
+   *
+   * A canvas measures 0 when it isn't laid out, which would divide by
+   * zero downstream; the window is a good enough answer for that frame.
+   */
   function fit() {
     const dpr = Math.min(devicePixelRatio || 1, 2);
-    const w = Math.round(innerWidth * dpr), h = Math.round(innerHeight * dpr);
+    const boxW = flood.clientWidth || innerWidth;
+    const boxH = flood.clientHeight || innerHeight;
+    const w = Math.round(boxW * dpr), h = Math.round(boxH * dpr);
     if (flood.width !== w || flood.height !== h) { flood.width = w; flood.height = h; }
     return dpr;
   }

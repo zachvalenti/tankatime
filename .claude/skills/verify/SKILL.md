@@ -53,8 +53,9 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
   actually installed, so that "did my merge go live?" is a readout rather than
   a guess — most merges change nothing you could spot from across the room. The
   two can legitimately differ for a minute while a new worker downloads; a
-  stamp that never matches means someone forgot to bump it. A test asserts the
-  two agree, so forgetting fails the suite rather than quietly misleading.
+  stamp that never matches means someone forgot to bump it. Nothing enforces
+  that — check it by hand on every release; there is no test suite in this
+  repo (see **What is and isn't automated** at the end).
 
   Worth knowing: `sw.js` caches **every** GET it serves, not only the files it
   precaches, so `probe.html` is itself held until the next `CACHE` bump. It is
@@ -86,6 +87,33 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
   Assert the walk has several distinct values but not dozens, that it never
   overshoots the flooded colour, that `stop()` returns it *exactly* to the
   theme, and that only one meta exists afterwards.
+- **The water canvas is measured off its own box, never off the window**
+  (`fit()` in the water module). `.flood` is `position: fixed; inset: 0` at
+  `100%`, and on a phone that box and `innerHeight` are not the same number: a
+  fixed element's `100%` resolves against the *large* viewport — the one you get
+  with the browser's bars hidden — while `innerHeight` reports the viewport you
+  can currently see. iOS Safari therefore disagrees with itself by the height of
+  its own toolbars, permanently.
+
+  Sizing the bitmap from the window handed the compositor a short bitmap to
+  stretch over a tall box. The stretch is the bug, and it is quiet: every
+  wavelength and amplitude comes out scaled by a factor no part of `app.js`
+  knows about, and the headroom that holds the surface below the bottom edge at
+  rest is scaled with them, so the tide spends longer than it should climbing to
+  the edge before any water appears. Which reads, from across the room, as the
+  water not starting at the bottom.
+
+  Assert `flood.width/height` equal the element's own `clientWidth/clientHeight`
+  times the capped dpr, and that the ratio of box to bitmap is exactly `1` — in
+  a viewport where the two agree *and* in one where they don't. Force the
+  disagreement the way the phone does, with `.flood { height: <taller> }`, and
+  drive a hold in both: the ink must reach the canvas's bottom row throughout.
+
+  What this does *not* fix, because no page can: in Safari the box's bottom
+  genuinely sits below the visible screen, behind the toolbar. The water reaches
+  the bottom of everything it owns; the strip past that is the chrome, and the
+  chrome is `floodChrome()`'s job. Don't reach for `visualViewport` here — see
+  the two entries below on where that road goes.
 - **The manifest must declare no `theme_color`.** Safari tints its own toolbar
   from `theme-color`, and `manifest.webmanifest` deliberately leaves the field
   out: a manifest is fetched *after* the document parses, and once Safari has
@@ -264,7 +292,7 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
 
   **Do not reinvent this.** If you find yourself reaching for `visualViewport`,
   `interactive-widget`, or a scroll listener that repositions the bar, that
-  road has been walked twice. The suite guards the absence: `keyboardUp`,
+  road has been walked twice. Check the absence by hand: `keyboardUp`,
   `placeBar` and `barLift` must all be `undefined`, and a `resize` on
   `visualViewport` must leave the bar's class list, inline style and computed
   `bottom` untouched. The accepted cost is that the toolbar and the running
@@ -290,7 +318,7 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
   covered, so nothing opaque is left to occlude anything and the water flows
   over the whole screen at every height for free. `.edges`, `stepAside()` and
   the per-frame work are gone. **If either custom property reappears, the
-  scrim has come back with it** — that is what `13f` guards.
+  scrim has come back with it** — check for both by hand.
 
   Four stops on `:root`, so one declaration serves both edges:
   `--hide-top`/`--show-top`, `--hide-bot`/`--show-bot`. **The foot is on every
@@ -341,3 +369,30 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
     over a DOM the browser hasn't finished building, which reorders lines.
   - Drive typing with *no* pauses between lines when testing this; a
     `waitForTimeout` between keystrokes hides both races.
+
+## What is and isn't automated
+
+**There is no test suite in this repo, and no build step.** Everything above is
+a recipe to be driven by hand — write a throwaway Playwright script in a scratch
+dir, per **Drive** at the top, and delete it after. Earlier versions of this
+document claimed a suite guarded three of these invariants (the `PROBE_BUILD`
+stamp, the absence of `keyboardUp`/`placeBar`/`barLift`, and the absence of
+`--fade-top`/`--fade-bot`). It never existed. Nothing here fails on its own; if
+you don't check it, it isn't checked.
+
+Adding one would mean a `package.json` and a Playwright dependency in a
+repository that is deliberately a folder of static files you can open directly.
+That trade hasn't been made. Until it is, treat every "assert" in this document
+as an instruction to you, not a description of something already running.
+
+## Reaching an installed PWA
+
+Worth knowing before chasing a phone-only bug that the code looks like it
+already fixes: `sw.js` is **cache-first**, so an installed app serves its cached
+release and only picks up a new one when `CACHE` changes and the new worker
+activates. And GitHub Pages serves the **default branch** — a fix sitting on a
+feature branch is not on the phone, however green it is locally.
+
+So when a report and the code disagree, establish *which release the device is
+running* before reading another line of the code. That is what `probe.html` is
+for, and why `PROBE_BUILD` has to track `CACHE`.
