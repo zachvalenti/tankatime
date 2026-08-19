@@ -61,6 +61,17 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
   precaches, so `probe.html` is itself held until the next `CACHE` bump. It is
   not a live-editable page. If its stamp is behind the release, the rest of
   what it says may be stale too.
+
+  **Bump `CACHE` for any change to a shipped file, including a probe-only
+  one.** Shipping `probe.html` on its own without a bump was tried and was a
+  mistake: the change was live and correct, and the stamp still read the old
+  release, so there was no way to tell the new probe from the old one — which
+  is the exact doubt this whole apparatus exists to remove. The number is the
+  only handle anyone has on "did it land"; a release that doesn't move it is
+  invisible to the instrument built to see it. iOS gives an installed PWA its
+  own storage partition, so the probe opened in Safari comes from the network
+  and is fresh regardless — but "fresh" and "identifiable" are not the same
+  thing, and only the second one settles an argument.
 - **The chrome floods with the page** (`floodChrome()` in the water module).
   On a phone the page is not the screen: Safari keeps a strip at each end for
   its address bar and toolbar, and the installed app keeps the status bar. No
