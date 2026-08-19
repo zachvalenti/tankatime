@@ -58,6 +58,16 @@
      aimed at the wrong thing. */
   .solid { position: fixed; inset: 0; display: none;
            background: #e05252; pointer-events: none; z-index: 99; }
+  /* The columns are fixed, so they cover the table that explains them —
+     which made the one screenshot that shows the picture unable to show the
+     numbers. This strip rides above them and carries the numbers into the
+     same frame. */
+  .nums { position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+          display: none; background: #000; color: #4ade80;
+          padding: calc(env(safe-area-inset-top) + 6px) 8px 8px;
+          font: 11px/1.4 ui-monospace, Menlo, monospace; white-space: pre-wrap;
+          pointer-events: none; border-bottom: 1px solid #3d5c46; }
+  html.boxes .nums { display: block; }
   /* 'painted' on the root, not 'solid': a bare .solid rule matches the
      root element too, so sharing the name hides the whole document — the
      same trap .cands fell into above. */
@@ -109,6 +119,7 @@ try { Object.assign(window.TC, JSON.parse(localStorage.tcProbe || '{}')); } catc
 <div class="veil"></div>
 <div class="cands" id="candbox"></div>
 <div class="solid"></div>
+<div class="nums" id="nums"></div>
 <div class="top"></div><div class="bot"></div>
 <div class="room">
 
@@ -182,7 +193,7 @@ then cycle and watch Safari's own top and bottom bars.</p>
  * until the next CACHE bump. If the stamp below doesn't match the
  * release, this page is stale too and the rest of it may be lying.
  */
-const PROBE_BUILD = 'v56';
+const PROBE_BUILD = 'v57';
 
 async function serverRelease() {
   /* no-store gets past the HTTP cache. It does *not* get past the service
@@ -327,7 +338,10 @@ function inPx(css) {
   unit.style.height = '';
   unit.style.height = css;
   const v = getComputedStyle(unit).height;
-  return (!v || v === 'auto' || v === '0px') ? '(unsupported)' : v;
+  // 0px is a real answer — an inset that genuinely is zero, or a unit the
+  // browser dropped as invalid. Those are indistinguishable from here and
+  // it doesn't matter which; calling zero "unsupported" would only mislead.
+  return (!v || v === 'auto') ? '(none)' : v;
 }
 
 function drawBoxes() {
@@ -365,12 +379,25 @@ function drawBoxes() {
     ['100svh resolves to', inPx('100svh')],
     ['100lvh resolves to', inPx('100lvh')],
     ['100dvh resolves to', inPx('100dvh')],
-    ['env(safe-area-inset-bottom)', inPx('env(safe-area-inset-bottom)') === '(unsupported)'
-      ? '0px or unsupported' : inPx('env(safe-area-inset-bottom)')],
+    ['env(safe-area-inset-top)', inPx('env(safe-area-inset-top)')],
+    ['env(safe-area-inset-bottom)', inPx('env(safe-area-inset-bottom)')],
+    ['screen minus innerHeight', screen.height - innerHeight],
   ].map(([k, v]) => `<tr><td>${k}</td><td><b>${v}</b></td></tr>`).join('');
 
   document.getElementById('box').innerHTML = out +
     '<tr><td colspan="2">&nbsp;</td></tr>' + extra;
+
+  // the same readings, compact, for the strip that sits above the columns
+  document.getElementById('nums').textContent =
+    `screen ${screen.height}  inner ${innerHeight}  ` +
+    `clientH ${document.documentElement.clientHeight}  ` +
+    `sa-top ${inPx('env(safe-area-inset-top)')}  sa-bot ${inPx('env(safe-area-inset-bottom)')}\n` +
+    `vh ${inPx('100vh')} svh ${inPx('100svh')} lvh ${inPx('100lvh')} dvh ${inPx('100dvh')}\n` +
+    candEls.map(c => {
+      const b = Math.round((c.measured || c.el).getBoundingClientRect().bottom);
+      return `${c.tag}${b}${b >= screen.height ? '=' : '<'}`;
+    }).join(' ');
+
   if (!was) html.classList.remove('boxes');
 }
 
