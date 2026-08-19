@@ -180,12 +180,20 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
   belongs to iOS.
 
   **The fix is geometry, not paint**: `apple-mobile-web-app-status-bar-style`
-  is `black` now, not `black-translucent`. An opaque bar sits the web view
+  is `default` now, not `black-translucent`. Any opaque style sits the web view
   *below* the clock, so the view's bottom edge is the screen's bottom edge and
-  the water starts at the true bottom. The trade is the top: the clock strip
-  is iOS-painted black — invisible on the dark themes, a visible band on
-  paper — and the writing no longer runs under the clock, so the coarse
-  top-fade collapses to the small `env()=0` fade every other phone gets.
+  the water starts at the true bottom — verified on-device at v60
+  (`covers viewport`, `sa-top 0px`). `black` shipped first and proved the
+  geometry at the cost of a flat black clock strip; `default` keeps the
+  geometry and hands the strip to **`theme-color`, which modern iOS (15+)
+  paints the standalone status bar from, live** — so the bar wears the theme
+  and `floodChrome()` walks it with the tide, the very machinery built for
+  Safari's chrome in v52. iOS picks light or dark clock text from the colour.
+  Pre-15 iOS shows a system bar instead; the bottom stays right regardless.
+  What does *not* come back under any opaque style is writing under the clock —
+  that is translucent's feature, and the dead strip at the foot is its price.
+  The coarse top-fade collapses to the small `env()=0` fade every other phone
+  gets, which is correct now that nothing sits over the writing.
 
   **This meta is read when the icon is added to the home screen.** Changing it
   does nothing to an installed copy — the app must be deleted and re-added to
