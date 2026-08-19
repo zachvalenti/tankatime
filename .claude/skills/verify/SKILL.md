@@ -208,6 +208,32 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
   tide by the time it reaches the bottom of the screen, so a solid band of the
   flooded colour is what the crests above resolve to anyway.
 
+  **Drive the band off the surface, never off `cover`.** v64 gave it the same
+  whole-screen ramp as the chrome and it faded over the full three seconds —
+  reported, correctly, as the wash "not beginning from the very bottom of the
+  screen", because the band is at the very bottom and the surface crosses it in
+  the first breath. `floodBand()` ramps on the surface's own distance below the
+  page instead: ten to sixteen steps between roughly 20 ms and 215 ms, landing
+  exactly on the flooded colour and holding. Assert it with a MutationObserver
+  on the root's `style` rather than by polling — the whole window is ~190 ms and
+  a 70 ms poll catches two samples and calls a working ramp a jump.
+
+  **The band's height is `env(safe-area-inset-top)`**, not `screen.height`
+  minus `innerHeight`. env() is what iOS shifted the view by, and it drops to 0
+  in landscape where the status bar does too, which is right; the subtraction
+  gets landscape wrong and `screen.height` does not reliably swap on rotation.
+  Resolved through `insetPx()`, cached per edge and cleared on resize.
+
+  **The card's `::backdrop` cannot reach the band either** — same boundary, and
+  that is how the band was identified in the first place. So
+  `html:has(dialog[open])` dims `--screen` to `--screen-dim`, `--bg` at 45%,
+  the light the backdrop leaves. Otherwise the card opens over a dimmed screen
+  with a bright strip along the foot. **Write `--screen-dim` out per theme; do
+  not reach for `color-mix()`.** It is Safari 16.2+, it serialises to `oklab()`,
+  and a custom property holding a function the engine cannot parse stays
+  invalid at computed-value time — which takes `background: var(--screen)` down
+  with it and blanks the band outright. A hex cannot fail.
+
   Two things this refactor removed, both cargo:
   - `.room` had a background for exactly one release (v63). **The mask fades
     whatever `.room` is given**, so the moment the flood made that colour differ

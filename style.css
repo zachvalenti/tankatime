@@ -59,6 +59,12 @@
      the flood moves --screen alone, which is why the band can follow the
      tide without the water double-darkening the writing. */
   --screen: var(--bg);
+  /* --bg at 45%, the same light the card's ::backdrop leaves. Written out
+     per theme rather than mixed: color-mix() is Safari 16.2+, and a custom
+     property holding a function the engine cannot parse stays invalid at
+     computed-value time, which takes `background: var(--screen)` with it and
+     blanks the band outright. A hex cannot fail. */
+  --screen-dim: #050605;
 
   --hide-top: 0px;
   --show-top: 0px;
@@ -78,6 +84,7 @@
   --flag: #c0392b;
   --tide: #3d7ea6;
   --sel:  rgba(47, 125, 70, .22);
+  --screen-dim: #6f6c66;
   color-scheme: light;
 }
 
@@ -91,6 +98,7 @@
   --flag: #ef6f6f;
   --tide: #6ea8d8;
   --sel:  rgba(230, 201, 143, .25);
+  --screen-dim: #0a090f;
 }
 
 /* The document itself never scrolls. The room inside it does.
@@ -183,6 +191,14 @@ html {
    scroll must not chain into the page behind it. :has() lets the page
    react to the state of an element inside it */
 html:has(dialog[open]) .room { overflow: hidden; }
+
+/* And the card's ::backdrop cannot reach the band iOS keeps below the
+   viewport — a backdrop covers the viewport by definition, which is exactly
+   how that band was identified. So the band is dimmed by the one property
+   that does reach it, to the same 55% black the backdrop lays down. Without
+   this the card opens over a dimmed screen with a bright strip along the
+   foot, which reads as broken and was. */
+html:has(dialog[open]) { --screen: var(--screen-dim); }
 
 body {
   background: var(--screen);
