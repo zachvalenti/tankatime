@@ -445,11 +445,34 @@ html.swapping, html.swapping * { transition: none !important; }
    top of the page; let go early and it falls away. The water itself —
    three translucent layers whose crests deform as they drift — is drawn
    on this canvas by app.js */
+/* The clear-hold water, and it has to reach the real bottom of the screen.
+ *
+ * This said `inset: 0; width: 100%; height: 100%` and that is not what it
+ * looks like. Give an absolutely positioned box `top`, `bottom` *and* a
+ * height and it is over-constrained, so the used value of `bottom` is
+ * thrown away (CSS 2.1 §10.6.4; `right` goes the same way in §10.3.7).
+ * The canvas was therefore never pinned to the bottom edge at all — it
+ * hung from the top and took its size from a percentage.
+ *
+ * Which is fine until the percentage and the screen disagree, and in an
+ * installed iOS app they do: 100% of the fixed containing block leaves
+ * out the home-indicator strip. The page still painted that strip, in
+ * `--bg`, because the root background covers the whole viewport canvas
+ * whatever the elements do — so the tide rose over everything, stopped
+ * short, and left a dry band of theme colour along the very bottom with
+ * the flooded page directly above it.
+ *
+ * So: hang from the top as it really did, and add the strip back
+ * explicitly. env() is `0` on any device without an inset, which makes
+ * this identical to the old rule everywhere the old rule was right. The
+ * bitmap follows on its own — fit() measures this box, not the window.
+ */
 .flood {
   position: fixed;
-  inset: 0; /* shorthand for top/right/bottom/left: 0 */
+  top: 0;
+  left: 0;
   width: 100%;
-  height: 100%;
+  height: calc(100% + env(safe-area-inset-bottom));
   pointer-events: none;
 }
 

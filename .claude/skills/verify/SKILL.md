@@ -114,6 +114,28 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
   the bottom of everything it owns; the strip past that is the chrome, and the
   chrome is `floodChrome()`'s job. Don't reach for `visualViewport` here — see
   the two entries below on where that road goes.
+
+  **And the box has to actually be pinned to the bottom, which `inset: 0` does
+  not do here.** `.flood` read `inset: 0; width: 100%; height: 100%` for a long
+  time, which looks like four pinned edges and is not: give a positioned box
+  `top`, `bottom` *and* a height and it is over-constrained, so `bottom` is
+  discarded (CSS 2.1 §10.6.4, and `right` likewise in §10.3.7). The canvas hung
+  from the top and sized itself by a percentage.
+
+  In an installed iOS app that percentage leaves out the home-indicator strip,
+  so the tide rose over the whole page, stopped ~34 px short, and left a dry
+  band of `--bg` along the very bottom with the flooded page directly above it.
+  Reported twice as "not starting from the bottom", and it looks nothing like a
+  canvas bug in a screenshot — the band is the theme colour, so it reads as
+  chrome. It isn't: the root background paints the whole viewport canvas
+  regardless of what the elements do, which is why that strip had colour at all.
+  The height is `calc(100% + env(safe-area-inset-bottom))` now; `env()` is `0`
+  wherever there is no inset, so nothing else changed.
+
+  Chromium reports every inset as `0`, so drive this with the numbers restated,
+  and keep a contrast case that reproduces the shortfall (`height: calc(100% -
+  34px)`) — a test that only ever sees the fixed rule cannot tell you the fix
+  was needed.
 - **The manifest must declare no `theme_color`.** Safari tints its own toolbar
   from `theme-color`, and `manifest.webmanifest` deliberately leaves the field
   out: a manifest is fetched *after* the document parses, and once Safari has
