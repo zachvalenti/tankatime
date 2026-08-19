@@ -1488,7 +1488,29 @@ const water = (() => {
   const BAND_STEPS = 16;
   let bandStep = -1;
 
+  /* And only where the band exists.
+   *
+   * The band is a standalone artefact: it is the status bar's height that
+   * black-translucent pushed off the bottom of the web view, and a browser
+   * tab has nothing of the kind. Safari's own bars sit outside the viewport
+   * at both ends and take `theme-color`, which floodChrome ramps on the
+   * whole-screen average — the right number for a strip at the top.
+   *
+   * Writing --screen in a tab therefore buys nothing and costs something:
+   * html and body carry it, and Safari samples the page for its bars, so it
+   * handed both of them the colour of the water's *bottom row* instead. The
+   * bars stopped following the page the way they had since v52. So the
+   * channel moves in standalone only, and a tab is left to theme-color.
+   *
+   * navigator.standalone is the one iOS answers honestly here; the
+   * display-mode query has reported "no" from inside an installed app
+   * before, which is what the probe's own note about it is for.
+   */
+  const inApp = !!navigator.standalone ||
+    matchMedia('(display-mode: standalone)').matches;
+
   function floodBand() {
+    if (!inApp) return;
     if (!HEX.test(tide) || !HEX.test(themeBg())) return;
     // what is left of the page through every layer at that last row
     let clear = 1;
