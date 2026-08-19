@@ -104,8 +104,30 @@ html, body {
   overflow: hidden;
 }
 
+/* The root background, split in two on purpose.
+ *
+ * An installed iOS app with a black-translucent status bar gets a layout
+ * viewport of screen minus the status bar — 797 on an 844 screen — and moves
+ * it up under the clock. Nothing that height ends up at the foot of the
+ * screen: the last 47px are outside the viewport, and *elements are clipped
+ * to it*. The clear-hold canvas measures 831 tall and still stops painting at
+ * 797, and the about dialog's ::backdrop — which covers the viewport by
+ * definition — is cut on the same line. That match is what identified this.
+ *
+ * The one thing that still reaches those 47px is the root's own
+ * background-color, because the root's background paints the whole canvas
+ * while a background-image is sized to the root's box. So: the colour fills
+ * the screen, and an image of the same colour covers the box. Identical at
+ * rest, and it gives the flood one lever on the strip — water() writes the
+ * flooded colour to the colour half and the image keeps the page itself
+ * honest (see floodChrome).
+ *
+ * If a browser paints the colour only to the box, this is exactly the old
+ * single declaration and the strip stays as it was. It degrades to today. */
 html {
-  background: var(--bg);
+  background-color: var(--bg);
+  background-image: linear-gradient(var(--bg), var(--bg));
+  background-repeat: no-repeat;
 }
 
 .room {

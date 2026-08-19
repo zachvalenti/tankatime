@@ -147,6 +147,47 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
   and keep a contrast case that reproduces the shortfall (`height: calc(100% -
   34px)`) — a test that only ever sees the fixed rule cannot tell you the fix
   was needed.
+- **An installed iOS app clips elements to a viewport shorter than the screen,
+  and that is the dry strip at the foot of the water.** This cost four
+  releases, three of them aimed at the wrong thing, so the shape of the
+  evidence matters more than the fix.
+
+  With `apple-mobile-web-app-status-bar-style: black-translucent` (present
+  since the first commit), iOS gives a standalone window a layout viewport of
+  screen minus the status bar and moves it up under the clock. On a 390×844
+  phone: `innerHeight` 797, `screen.height` 844, `env(safe-area-inset-top)`
+  47px — and the missing 47 land at the *foot* of the screen. **Elements are
+  clipped to that viewport.** The flood canvas measured 831 tall (`100%` plus a
+  34px overdraw) and still stopped painting at 797.
+
+  Two things identify it, and neither is the canvas:
+  - The about dialog's `::backdrop` covers the viewport *by definition* and is
+    cut on the same line as the water. Two unrelated full-viewport mechanisms
+    stopping together is the viewport, not either mechanism.
+  - The same window in **Safari** reports `innerHeight` 844 and every fixed box
+    reaches the bottom, including a bare `height: 100%`. Standalone and Safari
+    are different windows; a probe run in one says nothing about the other.
+
+  **So no height rule fixes this.** `100%`, `100% + env(...)`, `vh`, `dvh`,
+  `lvh`, bottom-anchored, a stretched div, a canvas inside a stretched div —
+  all nine were driven and all reached `screen.height` in Safari, which is
+  exactly why testing there was worthless. Do not reach for another one.
+
+  The one thing that still covers those 47px is the **root's own
+  background-color**: a root background paints the whole canvas, while a root
+  background-image is sized to the root's box. So `html` carries the colour and
+  an image of the same colour — identical at rest — and `floodChrome()` writes
+  the flooded mix to the colour half, the same value it gives `theme-color`.
+  Flat, not waves; it is behind the home indicator and the tide it belongs to
+  is above it. A browser that paints the colour only to the box gets exactly
+  the old single declaration, so it degrades to the previous behaviour.
+
+  Assert the two halves agree at rest, that a hold moves the colour and not the
+  image, that the colour matches the meta, that the inline colour is cleared on
+  `stop()` so a theme change still lands, and — the part Chromium cannot see —
+  read `/version` inside the installed app for `flood … reaches` versus
+  `N SHORT`.
+
 - **The manifest must declare no `theme_color`.** Safari tints its own toolbar
   from `theme-color`, and `manifest.webmanifest` deliberately leaves the field
   out: a manifest is fetched *after* the document parses, and once Safari has
