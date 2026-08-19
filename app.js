@@ -507,7 +507,52 @@ function setRelease(rows, src, modes) {
     if (/\/version\b/i.test(src[n])) { i = n; break; }
   if (i < 0 || !rows[i]) return;
   releaseLine = rows[i];
-  releaseLine.setAttribute('data-release', release);
+  releaseLine.setAttribute('data-release', release + geometry());
+}
+
+/* The geometry the water depends on, measured where the water lives.
+ *
+ * This exists because probe.html cannot answer for the installed app. A
+ * standalone window is not the Safari window — on the phone that reported
+ * this, Safari already disagreed with itself by the top inset (clientHeight
+ * 797 against innerHeight 844, svh against lvh) — and there is no way to
+ * navigate to the probe from inside an installed app. So the one measurement
+ * that matters is taken here: the flood canvas's own box, against the
+ * screen it is supposed to cover.
+ *
+ * `reach` is the whole question. If the canvas bottom sits at or past
+ * screen.height and a dry strip is still visible, then the box is not what
+ * is wrong and no height rule will fix it.
+ */
+function geometry() {
+  const r = flood.getBoundingClientRect();
+  const bottom = Math.round(r.bottom);
+  const inset = env => {
+    /* A custom property comes back exactly as written, so env() cannot be
+     * read through one — it has to be spent on a real length and that
+     * length asked what it became. */
+    if (!geometry.cell) {
+      geometry.cell = document.createElement('div');
+      geometry.cell.style.cssText = 'position:absolute;visibility:hidden;width:0';
+      document.body.appendChild(geometry.cell);
+    }
+    geometry.cell.style.height = `env(safe-area-inset-${env})`;
+    const v = getComputedStyle(geometry.cell).height;
+    return !v || v === 'auto' ? '(none)' : v;
+  };
+  return '\n' +
+    `flood ${Math.round(r.top)}→${bottom} of ${screen.height}` +
+    ` ${bottom >= screen.height ? 'reaches' : (screen.height - bottom) + ' SHORT'}\n` +
+    // fit() only runs while water is on screen, so before the first hold
+    // this is a canvas's untouched default and says nothing about the app
+    `bitmap ${flood.width}×${flood.height}` +
+    `${flood.width === 300 && flood.height === 150 ? ' (idle)' : ''}` +
+    ` box ${Math.round(r.width)}×${Math.round(r.height)}\n` +
+    `inner ${innerHeight} clientH ${document.documentElement.clientHeight}` +
+    ` screen ${screen.height}\n` +
+    `sa-top ${inset('top')} sa-bot ${inset('bottom')}` +
+    ` ${navigator.standalone ? 'standalone' : 'browser'}` +
+    `${matchMedia('(display-mode: standalone)').matches ? '+dm' : ''}`;
 }
 
 /* Two questions, because on a cache-first app they have different
