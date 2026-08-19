@@ -19,7 +19,23 @@
 <!-- iOS-specific: run full-screen when launched from the home screen -->
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<!-- black, not black-translucent, and this took five releases to earn.
+     Translucent tells iOS to lay the web view out under the clock — but it
+     sizes the view at screen minus status bar and only *moves* it up, so
+     the status bar's height falls off the BOTTOM of the screen as a strip
+     the page does not own. Elements are clipped at its edge (the clear-hold
+     water and the about dialog's ::backdrop cut on the same line, which is
+     what identified it) and even the root's own background cannot reach it:
+     v53 through v59 aimed paint at those pixels and none of it landed,
+     because they were never the page's to paint. An opaque bar sits the
+     view BELOW the clock instead, so the view's bottom edge is the screen's
+     bottom edge and the water genuinely starts at the bottom.
+     The trade: the clock strip is iOS's now — black, near-invisible on the
+     dark themes, a visible band on paper.
+     Worth knowing: iOS reads this when the icon is ADDED. Changing it does
+     nothing to an installed copy; the app must be re-added to the home
+     screen to take the new geometry. -->
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="Tanka">
 <link rel="stylesheet" href="style.css">
 </head>

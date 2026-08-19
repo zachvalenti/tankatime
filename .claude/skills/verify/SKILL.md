@@ -168,25 +168,32 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
     reaches the bottom, including a bare `height: 100%`. Standalone and Safari
     are different windows; a probe run in one says nothing about the other.
 
-  **So no height rule fixes this.** `100%`, `100% + env(...)`, `vh`, `dvh`,
-  `lvh`, bottom-anchored, a stretched div, a canvas inside a stretched div —
-  all nine were driven and all reached `screen.height` in Safari, which is
-  exactly why testing there was worthless. Do not reach for another one.
+  **So no paint fixes this — none.** Every height rule was driven (`100%`,
+  `100% + env(...)`, `vh`, `dvh`, `lvh`, bottom-anchored, a stretched div, a
+  canvas inside a stretched div) and all nine reached `screen.height` in
+  Safari, which is exactly why testing there was worthless. Then the root's
+  own `background-color` — the lowest-level paint a page has, the one that
+  covers the whole canvas rather than the root's box — was pointed at the
+  strip (v59) and *that* failed on the device too. That failure is the
+  identification: the strip is not part of the page at all. The web view
+  itself is 47px short and shifted up under the clock; the strip below it
+  belongs to iOS.
 
-  The one thing that still covers those 47px is the **root's own
-  background-color**: a root background paints the whole canvas, while a root
-  background-image is sized to the root's box. So `html` carries the colour and
-  an image of the same colour — identical at rest — and `floodChrome()` writes
-  the flooded mix to the colour half, the same value it gives `theme-color`.
-  Flat, not waves; it is behind the home indicator and the tide it belongs to
-  is above it. A browser that paints the colour only to the box gets exactly
-  the old single declaration, so it degrades to the previous behaviour.
+  **The fix is geometry, not paint**: `apple-mobile-web-app-status-bar-style`
+  is `black` now, not `black-translucent`. An opaque bar sits the web view
+  *below* the clock, so the view's bottom edge is the screen's bottom edge and
+  the water starts at the true bottom. The trade is the top: the clock strip
+  is iOS-painted black — invisible on the dark themes, a visible band on
+  paper — and the writing no longer runs under the clock, so the coarse
+  top-fade collapses to the small `env()=0` fade every other phone gets.
 
-  Assert the two halves agree at rest, that a hold moves the colour and not the
-  image, that the colour matches the meta, that the inline colour is cleared on
-  `stop()` so a theme change still lands, and — the part Chromium cannot see —
-  read `/version` inside the installed app for `flood … reaches` versus
-  `N SHORT`.
+  **This meta is read when the icon is added to the home screen.** Changing it
+  does nothing to an installed copy — the app must be deleted and re-added to
+  take the new geometry, which is also why the old geometry survives on any
+  device that never reinstalls. `/version` prints the verdict either way:
+  `covers viewport` (opaque-bar geometry, or any normal browser), versus
+  `covers viewport; 47px below it is iOS's` (the translucent dead strip), or
+  `N SHORT of viewport` (a real canvas bug — none known).
 
 - **The manifest must declare no `theme_color`.** Safari tints its own toolbar
   from `theme-color`, and `manifest.webmanifest` deliberately leaves the field
