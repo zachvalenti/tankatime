@@ -510,6 +510,28 @@ function setRelease(rows, src, modes) {
   releaseLine.setAttribute('data-release', release + geometry());
 }
 
+/* What a safe-area inset actually resolves to, in CSS px.
+ *
+ * A custom property comes back exactly as written, so env() cannot be read
+ * through one — it has to be spent on a real length and that length asked
+ * what it became. Cached per edge and cleared on resize, because a rotation
+ * changes every one of them.
+ */
+const insetCache = {};
+function insetPx(edge) {
+  if (edge in insetCache) return insetCache[edge];
+  if (!insetPx.cell) {
+    insetPx.cell = document.createElement('div');
+    insetPx.cell.style.cssText = 'position:absolute;visibility:hidden;width:0';
+    document.body.appendChild(insetPx.cell);
+  }
+  insetPx.cell.style.height = `env(safe-area-inset-${edge})`;
+  const v = parseFloat(getComputedStyle(insetPx.cell).height);
+  return (insetCache[edge] = Number.isFinite(v) ? v : 0);
+}
+addEventListener('resize', () => { for (const k in insetCache) delete insetCache[k]; });
+addEventListener('orientationchange', () => { for (const k in insetCache) delete insetCache[k]; });
+
 /* The geometry the water depends on, measured where the water lives.
  *
  * This exists because probe.html cannot answer for the installed app. A
@@ -527,19 +549,7 @@ function setRelease(rows, src, modes) {
 function geometry() {
   const r = flood.getBoundingClientRect();
   const bottom = Math.round(r.bottom);
-  const inset = env => {
-    /* A custom property comes back exactly as written, so env() cannot be
-     * read through one — it has to be spent on a real length and that
-     * length asked what it became. */
-    if (!geometry.cell) {
-      geometry.cell = document.createElement('div');
-      geometry.cell.style.cssText = 'position:absolute;visibility:hidden;width:0';
-      document.body.appendChild(geometry.cell);
-    }
-    geometry.cell.style.height = `env(safe-area-inset-${env})`;
-    const v = getComputedStyle(geometry.cell).height;
-    return !v || v === 'auto' ? '(none)' : v;
-  };
+  const inset = env => insetPx(env) + 'px';
   /* Where the viewport's bottom edge really sits depends on the status
    * bar style. black-translucent shifted the view up under the clock and
    * left a dead strip below the viewport that no page paint could reach —
@@ -1435,26 +1445,57 @@ const water = (() => {
     const step = Math.round(cover * CHROME_STEPS);
     if (step === chromeStep || now - chromeAt < CHROME_MS) return;
     chromeStep = step; chromeAt = now;
-    const wet = mixHex(themeBg(), tide, (step / CHROME_STEPS) * tideAlpha);
-    setThemeColor(wet);
-    /* The band iOS owns at the foot, which it paints from the document's
-     * background colour — cream under the paper theme, measured. One
-     * property carries that colour and nothing else does, so moving it
-     * cannot touch the page: html and body take --screen, .base takes
-     * --bg, and .base is what the eye reads (see style.css).
-     *
-     * Flat there rather than waves, and flat is right: the water is at
-     * full tide by the time it reaches the bottom of the screen, so a
-     * solid band of the flooded colour is what the crests above it
-     * resolve to anyway.
-     */
-    document.documentElement.style.setProperty('--screen', wet);
+    setThemeColor(mixHex(themeBg(), tide, (step / CHROME_STEPS) * tideAlpha));
+  }
+
+  /* The band iOS keeps below the page, and why it needs its own clock.
+   *
+   * black-translucent moves the web view up under the status bar without
+   * making it taller, so the status bar's height reappears as a band at the
+   * FOOT, outside the viewport. Nothing in the page can paint it — proven
+   * by the about dialog's ::backdrop, which covers the viewport by
+   * definition and stops on the same line. What iOS does do is paint it
+   * from the document's background colour, so --screen carries that colour
+   * and nothing else does (html and body take it; .base takes --bg and is
+   * what the eye reads).
+   *
+   * The mistake worth not repeating: this was first driven off the same
+   * whole-screen `cover` as the chrome, and so it faded over the full three
+   * seconds. But the band is at the very bottom — the surface crosses it in
+   * the first breath of the hold and everything after that is full tide. So
+   * it is driven off the surface's own position instead: it fills exactly as
+   * the surface passes through it, which is what makes the wash read as
+   * starting at the true bottom edge of the screen rather than 47px up.
+   *
+   * The band's height is the status-bar inset, not screen.height minus
+   * innerHeight: env() is what iOS shifted the view by, and it goes to 0 in
+   * landscape where the status bar does too — which is correct, and which a
+   * screen-height subtraction gets wrong.
+   */
+  const BAND_STEPS = 16;
+  let bandStep = -1;
+
+  function floodBand(base, h, dpr) {
+    if (!HEX.test(tide) || !HEX.test(themeBg())) return;
+    const band = insetPx('top') * dpr;
+    // how far the surface still sits below the page's bottom edge
+    const below = base - h;
+    const t = band > 0
+      ? 1 - Math.min(Math.max(below / band, 0), 1)   // crossing the band
+      : (below <= 0 ? 1 : 0);                        // no band to cross
+    const step = Math.round(t * BAND_STEPS);
+    if (step === bandStep) return;
+    bandStep = step;
+    document.documentElement.style.setProperty('--screen',
+      mixHex(themeBg(), tide, (step / BAND_STEPS) * tideAlpha));
   }
 
   function dryChrome() {
     chromeStep = -1;
+    bandStep = -1;
     setThemeColor(themeBg());
-    // back to the stylesheet's var(--bg), so a theme change still lands
+    // removed rather than reset, so the stylesheet's var(--bg) governs again
+    // and the dialog's own --screen rule can still win
     document.documentElement.style.removeProperty('--screen');
   }
 
@@ -1507,8 +1548,10 @@ const water = (() => {
     const base = (h + 70 * dpr) - (h + 170 * dpr) * p;
     const swell = 1 + fury * 1.5;
     const rush = 1 + fury * 3;
-    // the chrome takes the same tide the page does — see floodChrome()
+    // two frames, two clocks: the chrome averages the whole screen (see
+    // floodChrome), the band tracks the surface crossing it (floodBand)
     floodChrome(Math.max(0, Math.min(1, (h - base) / h)), now);
+    floodBand(base, h, dpr);
 
     ctx.clearRect(0, 0, w, h);
     ctx.fillStyle = tide;
