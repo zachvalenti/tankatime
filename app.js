@@ -27,6 +27,8 @@ const exportBtn = document.getElementById('export');
 const themeBtn  = document.getElementById('theme');
 const clearBtn  = document.getElementById('clear');
 const flood     = document.getElementById('flood');
+// the opaque layer over the whole viewport — see paintBase()
+const baseLayer = document.querySelector('.base');
 
 // the tanka form: five lines of 5-7-5-7-7 syllables — and the older,
 // shorter one the first three of them came from, which /haiku asks for.
@@ -1857,7 +1859,32 @@ clearBtn.addEventListener('blur', cancelHold);
 function paintScreen(hex) {
   const root = document.documentElement;
   const v = hex || getComputedStyle(root).getPropertyValue('--screen').trim();
-  if (v) root.style.backgroundColor = v;
+  if (!v) return;
+  root.style.backgroundColor = v;
+  document.body.style.backgroundColor = v;
+}
+
+/* And the layer standing in front of it.
+ *
+ * v76 wrote the root's own colour directly and the bars still did not move,
+ * which took a while to make sense of and then made complete sense: `.base`
+ * is `position: fixed; inset: 0`, so it covers the whole viewport including
+ * the two strips at the ends that Safari looks at — and its colour arrives by
+ * `var(--bg)` selected by `[data-theme]`, which is exactly the route test 4
+ * measured as invisible. The root was fixed underneath an opaque layer whose
+ * own change nothing could see.
+ *
+ * So every surface that can be sampled changes by a direct write now: the
+ * root and body through paintScreen(), and this one here. The value is the
+ * same value the stylesheet would have computed, the .25s ease still applies
+ * to an inline change, and nothing about the page looks different.
+ *
+ * The tide does not come through here. `.base` is the page, not the screen —
+ * the water is a canvas painted over it, and a flood that moved this would
+ * darken every line of writing on it. Theme only.
+ */
+function paintBase(hex) {
+  if (baseLayer) baseLayer.style.backgroundColor = hex;
 }
 
 /* On Apple's WebKit the tag is not a lever, it is a lid.
@@ -1902,9 +1929,10 @@ function applyTheme(name) {
   root.classList.add('swapping');
   if (name === 'room') delete root.dataset.theme;
   else root.dataset.theme = name;
-  // the write the chrome reads — the attribute above moves every colour on
+  // the writes the chrome reads — the attribute above moves every colour on
   // the page and, on iOS, tells the browser nothing at all
   paintScreen(THEMES[name]);
+  paintBase(THEMES[name]);
   // a replace, not a rewrite: this is the event Safari was ignoring
   setThemeColor(THEMES[name], true);
   try { localStorage.setItem(THEME_KEY, name); } catch (_) {}

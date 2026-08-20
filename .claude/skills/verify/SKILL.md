@@ -490,6 +490,21 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
   through every theme switch and a whole flood and fall, on Apple; exactly one
   landing the theme everywhere else.
 
+  **And `.base` is the layer that was hiding all of it.** v76 wrote the root's
+  own colour directly and nothing moved, which only makes sense once you notice
+  that `.base` is `position: fixed; inset: 0` — it covers the whole viewport
+  *including the two strips at the ends Safari looks at* — and its colour
+  arrives by `var(--bg)` selected by `[data-theme]`, the exact route test 4
+  measured as invisible. The root was being fixed underneath an opaque layer
+  whose own change nothing could see.
+
+  **So every surface that can be sampled is written directly**: `paintScreen()`
+  does the root *and* `body` (both follow `--screen`), and `paintBase()` does
+  `.base` (theme only — the tide must never move it, the water is a canvas over
+  the page and darkening the page darkens every line of writing on it). The
+  values are the ones the stylesheet would have computed and the `.25s` ease
+  still applies, so nothing looks different.
+
   **Test 2 against test 4 is the bug.** Same element, same computed colour,
   same conditions; the only difference is the route, and the results are
   opposite. `html { background: var(--screen) }` with `--screen` resolving
