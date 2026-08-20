@@ -384,6 +384,44 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
     fall. Both are single deliberate events with no ease worth protecting, and
     both are the moments Safari was ignoring.
 
+  **v70 tried the document's background colour, and the phone said no.** The
+  reasoning was sound and the result was negative: `floodChrome()` writes the
+  flooded hex into `--screen` in a tab, `body` and `html` demonstrably walk
+  eleven values through a hold in Chromium — and on the device Safari's bars
+  still do not follow the tide. Everything else in that release was reported
+  correct (water, band, themes, the theme switch), so this is not a release
+  that failed to land; it is a channel that does not work.
+
+  So **both roads are now known dead in a tab under the app's own conditions**:
+  the meta rewrite (v69's finding) and the document's background colour (v70's).
+  Do not ship a third guess. What is still unseparated, and what `probe.html`
+  now exists to separate:
+
+  - **Does Safari sample rendered pixels rather than reading a colour?** If it
+    does, `.base` — opaque, fixed, `inset: 0` — stands in front of `--screen`
+    permanently, no amount of writing that property can reach the bars, and the
+    v64-v67 "bars wore the water's bottom row" report was the *canvas's own
+    pixels* being sampled at the foot rather than anything `--screen` did.
+    That reading fits every symptom so far and would mean the whole `--screen`
+    channel is the wrong instrument for a tab.
+  - **Does linking a manifest freeze the tint outright**, colour or no colour?
+    The app's manifest declares no `theme_color`; the probe's only manifest
+    declared a loud red, so "a manifest is linked" and "the manifest names a
+    colour" were never separated.
+  - **Did the bars ever actually follow the tide live?** "The way they had since
+    v52" is an inference written down as history, and nothing in this file
+    records anyone watching that happen. Worth asking outright before spending
+    another release restoring it.
+
+  **The probe answers the first two now.** `opaque layer over it (violet)` puts
+  an opaque fixed layer in a colour that appears in no cycle colour between the
+  document background and any sampler, so one press of `cycle` gives three
+  distinguishable answers: the bar cycles (it reads the document's background),
+  the bar turns violet (it samples pixels), the bar holds still (neither, and
+  the manifest is the remaining variable). The manifest control is three-way —
+  none / no `theme_color` / red — and `set every condition to the app's` puts
+  all of it into the app's exact shape in one tap and reload.
+
   **Which leaves the tide with no lever on Safari at all, and that is the point
   to hold on to.** A rise is ten rewrites, and a Safari with a manifest linked
   reads none of them — so `theme-color` moves the bars on a theme switch, on

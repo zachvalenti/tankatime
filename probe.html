@@ -43,6 +43,19 @@
      thing standing in front of what it would sample. */
   .veil { position: fixed; inset: 0; pointer-events: none; display: none; }
   html.veiled .veil { display: block; }
+  /* The app's .base: one *opaque* fixed layer across the whole viewport,
+     over the document's background and under everything else.
+     
+     This one deliberately does not carry the cycle colour, and that is the
+     whole point of it. The veil above always did, so a bar that followed
+     proved nothing about which of the two it had been looking at. Under the
+     pane the document's background cycles behind a constant violet that
+     appears in no cycle colour, so one press of `cycle` separates the two
+     readings for good: a bar that turns violet is sampling pixels, and a
+     bar that keeps cycling is reading the document's background colour. */
+  .pane { position: fixed; inset: 0; pointer-events: none; display: none;
+          background: #3a2fb0; z-index: -1; }
+  html.paned .pane { display: block; }
   /* The candidate boxes. Each is fixed and sized by a *different* rule,
      and each paints only the bottom slice of its own box plus a bright
      line exactly on its bottom edge. One screenshot then says which rules
@@ -98,8 +111,14 @@ window.TC = { colours: ['#101410', '#f6f1e3', '#171321'], at: 0,
                  Safari followed" reading never said which of the two it had
                  followed. Default on, because that is the app's own shape —
                  turn it off to vary the meta alone. */
-              chan: true };
+              chan: true, paned: false };
+/* `manifest` was a boolean while the only manifest on offer declared a red
+   theme_color. The app's manifest declares none, so "is a manifest linked"
+   and "does it name a colour" are two questions, and only the second one had
+   ever been asked here. Old saved state carries the boolean; fold it in. */
 try { Object.assign(window.TC, JSON.parse(localStorage.tcProbe || '{}')); } catch (e) {}
+if (typeof TC.manifest === 'boolean') TC.manifest = TC.manifest ? 'red' : 'non';
+window.MANIFESTS = { plain: 'probe-plain.webmanifest', red: 'probe.webmanifest' };
 (function () {
   const hex = TC.colours[TC.at];
   document.documentElement.style.background = TC.chan === false ? TC.colours[0] : hex;
@@ -107,15 +126,24 @@ try { Object.assign(window.TC, JSON.parse(localStorage.tcProbe || '{}')); } catc
   if (TC.how === 'non') meta.remove(); else meta.content = hex;
   if (TC.locked) document.documentElement.classList.add('locked');
   if (TC.veiled) document.documentElement.classList.add('veiled');
-  /* The app links a web app manifest, and that manifest declares a
-     theme_color of its own. A manifest is only ever read at load, so this
-     one is linked from here rather than offered as a live toggle. Its
-     theme_color is a red that appears in none of the cycle colours, so
-     there is no mistaking which source the browser is listening to. */
-  if (TC.manifest) {
+  if (TC.paned) document.documentElement.classList.add('paned');
+  /* A manifest is only ever read at load, so this is linked from here
+     rather than offered as a live toggle. Two of them, because the app's
+     shape and the loud control are different experiments:
+
+       plain  a manifest with no theme_color at all — exactly what the app
+              links, and the condition under which the meta was reported to
+              stop being re-read
+       red    a manifest whose theme_color is a red appearing in none of the
+              cycle colours, so a bar wearing it names its own source
+
+     "no manifest" is the third state and the one the earlier note in the
+     skill was accidentally testing under, which is how a check that ran in
+     a state the app never occupies got written down as proof. */
+  if (MANIFESTS[TC.manifest]) {
     const link = document.createElement('link');
     link.rel = 'manifest';
-    link.href = 'probe.webmanifest';
+    link.href = MANIFESTS[TC.manifest];
     document.head.appendChild(link);
   }
 })();
@@ -123,6 +151,7 @@ try { Object.assign(window.TC, JSON.parse(localStorage.tcProbe || '{}')); } catc
 </head>
 <body>
 <div class="veil"></div>
+<div class="pane"></div>
 <div class="cands" id="candbox"></div>
 <div class="solid"></div>
 <div class="nums" id="nums"></div>
@@ -167,9 +196,14 @@ then cycle and watch Safari's own top and bottom bars.</p>
 </div>
 <div>
   <button id="chan" class="on">page colour moves too</button>
+  <button id="pane">opaque layer over it (violet)</button>
 </div>
 <div>
-  <button id="man">manifest, theme_color red (reloads)</button>
+  <button id="app">set every condition to the app's (reloads)</button>
+</div>
+<div>
+  <button id="man">manifest, no theme_color — the app's (reloads)</button>
+  <button id="manred">manifest, theme_color red (reloads)</button>
 </div>
 <div>
   <button id="go">cycle the colour</button>
@@ -202,7 +236,7 @@ then cycle and watch Safari's own top and bottom bars.</p>
  * until the next CACHE bump. If the stamp below doesn't match the
  * release, this page is stale too and the rest of it may be lying.
  */
-const PROBE_BUILD = 'v70';
+const PROBE_BUILD = 'v71';
 
 async function serverRelease() {
   /* no-store gets past the HTTP cache. It does *not* get past the service
@@ -491,6 +525,10 @@ function draw() {
  *   locked    the document cannot scroll, which is what stopped the
  *             toolbar wandering under the keyboard and is the app's
  *             single biggest structural change
+ *   manifest  none · one with no theme_color (the app's) · one with a loud
+ *             red. Three states, not two: "a manifest is linked" and "the
+ *             manifest names a colour" are separate variables and only the
+ *             second was ever on offer here
  *   veiled    a fixed layer across the whole viewport, which is how the
  *             faded edges are drawn — and which stands exactly where
  *             anything sampling pixels would be looking
@@ -498,9 +536,23 @@ function draw() {
  *             cycle. This page always moved it, which made every reading
  *             ambiguous: `theme-color` and the page colour changed together,
  *             so a bar that followed proved only that *something* worked.
- *             Turn it off and the meta moves alone — and on iOS, with a
- *             manifest linked, the bars then stop following, which is the
- *             whole reason floodChrome() writes --screen as well.
+ *             Turn it off and the meta moves alone.
+ *   paned     an *opaque* fixed layer over the whole viewport, in a violet
+ *             that appears in no cycle colour — the app's `.base`, which
+ *             stands between the document's background and any sampler.
+ *
+ * `paned` is the one that settles the argument, because it is the only
+ * control here whose colour is *not* the cycle's. Turn it on and press
+ * cycle:
+ *   the bar cycles  → the bar reads the document's background colour, and
+ *                     an opaque layer does not stop it
+ *   the bar is violet → the bar samples rendered pixels, and --screen behind
+ *                     .base can never reach it however hard it is written
+ *   the bar holds still → neither road is live under these conditions, and
+ *                     the remaining variable is the manifest
+ *
+ * `app` sets every condition to the app's own shape at once and reloads,
+ * so the starting point of any hunt is one tap rather than four.
  *
  * Reload is the control: it is known to pick up the right colour.
  */
@@ -547,8 +599,10 @@ function drawTc() {
     document.getElementById(k).classList.toggle('on', TC.how === k);
   document.getElementById('lock').classList.toggle('on', TC.locked);
   document.getElementById('veil').classList.toggle('on', TC.veiled);
-  document.getElementById('man').classList.toggle('on', TC.manifest);
+  document.getElementById('man').classList.toggle('on', TC.manifest === 'plain');
+  document.getElementById('manred').classList.toggle('on', TC.manifest === 'red');
   document.getElementById('chan').classList.toggle('on', TC.chan);
+  document.getElementById('pane').classList.toggle('on', TC.paned);
   const meta = tcMeta();
   document.getElementById('tc').innerHTML =
     `<tr><td>page colour</td><td><b>${TC.colours[TC.at]}</b></td></tr>` +
@@ -558,8 +612,12 @@ function drawTc() {
       TC.chan ? 'yes (like the app)' : 'no — meta alone'}</b></td></tr>` +
     `<tr><td>document scrolls</td><td><b>${TC.locked ? 'no (like the app)' : 'yes'}</b></td></tr>` +
     `<tr><td>fixed layer over it</td><td><b>${TC.veiled ? 'yes (like the app)' : 'no'}</b></td></tr>` +
+    `<tr><td>opaque layer over it</td><td><b>${
+      TC.paned ? 'yes, violet #3a2fb0 (like .base)' : 'no'}</b></td></tr>` +
     `<tr><td>manifest linked</td><td><b>${
-      TC.manifest ? 'yes, theme_color #e05252' : 'no'}</b></td></tr>`;
+      TC.manifest === 'red' ? 'yes, theme_color #e05252'
+      : TC.manifest === 'plain' ? 'yes, no theme_color (like the app)'
+      : 'no'}</b></td></tr>`;
 }
 
 for (const k of Object.keys(HOW))
@@ -568,7 +626,8 @@ for (const k of Object.keys(HOW))
     announce(TC.colours[TC.at]);
     save(); drawTc();
   };
-for (const [id, key, cls] of [['lock', 'locked', 'locked'], ['veil', 'veiled', 'veiled']])
+for (const [id, key, cls] of [['lock', 'locked', 'locked'], ['veil', 'veiled', 'veiled'],
+                             ['pane', 'paned', 'paned']])
   document.getElementById(id).onclick = () => {
     TC[key] = !TC[key];
     root.classList.toggle(cls, TC[key]);
@@ -579,9 +638,20 @@ document.getElementById('chan').onclick = () => {
   paint(TC.colours[TC.at]);
   save(); drawTc();
 };
-// a manifest is only read at load, so this one has to take the page with it
-document.getElementById('man').onclick = () => {
-  TC.manifest = !TC.manifest;
+// a manifest is only read at load, so these have to take the page with them
+for (const [id, which] of [['man', 'plain'], ['manred', 'red']])
+  document.getElementById(id).onclick = () => {
+    TC.manifest = TC.manifest === which ? 'non' : which;
+    save();
+    location.reload();
+  };
+/* The app's own shape, in one tap. Every hunt so far has started by
+   guessing which condition to set and getting a different subset each time;
+   this is the subset the app actually occupies. Reloads, because the
+   manifest is only ever read at load. */
+document.getElementById('app').onclick = () => {
+  Object.assign(TC, { how: 'mut', locked: true, veiled: false, paned: true,
+                      manifest: 'plain', chan: true });
   save();
   location.reload();
 };

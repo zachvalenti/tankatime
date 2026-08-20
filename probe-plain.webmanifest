@@ -1,0 +1,8 @@
+{
+  "name": "Tanka Time probe",
+  "short_name": "Probe",
+  "start_url": "./probe.html",
+  "scope": "./",
+  "display": "browser",
+  "background_color": "#101410"
+}
