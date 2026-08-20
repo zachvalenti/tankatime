@@ -239,6 +239,27 @@ body {
    decided otherwise. */
 html.swapping, html.swapping * { transition: none !important; }
 
+/* The one thing that changed, in the window this broke, to the colour the
+ * chrome reads.
+ *
+ * At v50 — the last release the chrome is known to have followed a theme
+ * switch on the phone — `body` carried
+ * `transition: background-color .25s ease`, so the document's background
+ * colour *animated* across about fifteen frames. 09cb6b3 moved that ease to
+ * `.base` and left body snapping, correctly and for a real reason: body is
+ * the channel iOS derives the band from, and an ease there left the band lit
+ * for a quarter-second after the water had drained out from under it.
+ *
+ * Both can be true. The ease is only wanted for the one event that lost it,
+ * so it is scoped to that event: applyTheme() turns this on, a timer turns it
+ * off, and startHold() tears it off the moment water is coming. The flood and
+ * the fall never see it, so the band cannot lag again.
+ *
+ * After the swapping rule and !important on purpose — equal specificity, so
+ * document order decides, and the one frame swapping suppresses everything on
+ * is the frame this needs to be alive for. */
+html.tint, html.tint body { transition: background-color .25s ease !important; }
+
 ::selection { background: var(--sel); }
 
 .page {

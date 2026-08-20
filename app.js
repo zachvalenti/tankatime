@@ -1734,6 +1734,10 @@ const water = (() => {
 
 function startHold() {
   if (holdTimer || !getText().trim()) return;
+  // no ease on the channel while the water is up: that is exactly the
+  // quarter-second of band lag 09cb6b3 removed
+  clearTimeout(applyTheme.untint);
+  document.documentElement.classList.remove('tint');
   clearBtn.classList.add('holding');
   water.rise();
   holdTimer = setTimeout(() => {
@@ -1931,6 +1935,11 @@ function applyTheme(name) {
   else root.dataset.theme = name;
   // the writes the chrome reads — the attribute above moves every colour on
   // the page and, on iOS, tells the browser nothing at all
+  // ease the document's colour across this one event, the way v50 did — see
+  // the html.tint rule. Cleared on a timer, and by startHold() if water comes.
+  root.classList.add('tint');
+  clearTimeout(applyTheme.untint);
+  applyTheme.untint = setTimeout(() => root.classList.remove('tint'), 400);
   paintScreen(THEMES[name]);
   paintBase(THEMES[name]);
   // a replace, not a rewrite: this is the event Safari was ignoring

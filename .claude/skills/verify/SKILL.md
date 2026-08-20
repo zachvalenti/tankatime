@@ -349,6 +349,12 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
     up across v54–v59 were buying nothing. `/version` still prints the box, and
     `covers viewport` is the only verdict that means anything.
 
+  **A MutationObserver is a microtask, so a suite that reads in the same
+  `evaluate()` reads before it runs.** The dialog assertion went red on the
+  release that added `html.tint` and the app was fine — the test opened the
+  card and read the computed colour in one call, before the observer that
+  applies the dim had fired. Open, wait a beat, then read.
+
   Assert the inline channel separately from `--screen`, because they can
   disagree and only one of them is read: the root carries an inline
   `background-color` from boot; a theme switch moves it to the theme's hex with
@@ -489,6 +495,31 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
   both halves under a faked `navigator.vendor`** — zero metas by first paint,
   through every theme switch and a whole flood and fall, on Apple; exactly one
   landing the theme everywhere else.
+
+  **The ease, and what the regression history says.** The probe's readings are
+  all from a page that is not the app, and three fixes derived from them
+  (v76 root, v77 tag removal, v78 `.base`) each failed on the device. So the
+  next candidate came from the app's own history instead. At **v50** — the last
+  release the chrome is known to have followed a theme switch on the phone —
+  `body` carried `transition: background-color .25s ease`, so the document's
+  background colour *animated* across about fifteen frames. `09cb6b3` moved
+  that ease to `.base`, correctly and for a real reason (body is the channel
+  the band comes from, and easing it left the band lit a quarter-second after
+  the water drained). That is the one change to the colour the chrome reads,
+  inside the window where this broke.
+
+  Both needs are real, so the ease is scoped to the one event that lost it:
+  `html.tint` is added by `applyTheme()`, cleared on a 400 ms timer, and torn
+  off by `startHold()` the moment water is coming — the flood and the fall
+  never see it, so the band cannot lag again. The rule sits **after**
+  `html.swapping` and carries `!important`, because equal specificity means
+  document order decides and the frame `swapping` suppresses everything on is
+  the frame this has to be alive for.
+
+  **This contradicts the probe**, where a snapped inline write does move the
+  bars, and that contradiction is not resolved. Treat it as: the probe answers
+  questions about the probe, and the app's own diff against its last known-good
+  release is the better evidence about the app.
 
   **And `.base` is the layer that was hiding all of it.** v76 wrote the root's
   own colour directly and nothing moved, which only makes sense once you notice
