@@ -443,6 +443,30 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
     records anyone watching that happen. Worth asking outright before spending
     another release restoring it.
 
+  **Cleared on the device, under the app's own conditions:** replacing the
+  element, the app's manifest, a locked document and an opaque fixed layer over
+  the background. The probe was set to all four at once and Safari's bars
+  followed the cycle. So none of those is the blocker — which also means the
+  device is not simply refusing to move its bars, and the remaining difference
+  is something the app has and the probe does not.
+
+  **But that reading moved the tag and the page colour together, so it does not
+  say which one Safari read.** That confound is the single reason this page has
+  produced so little in so many rounds, and it is now split into three named
+  tests rather than a set of toggles a reader has to decode:
+
+  - **test 1 — only the tag moves.** `replace element`, page pinned to one
+    colour. Bars follow ⇒ Safari reads `theme-color`.
+  - **test 2 — only the page moves.** No meta in the document at all, page
+    colour cycling. Bars follow ⇒ Safari reads the page.
+  - **test 3 — both, the app's shape.** The control; the bars are known to
+    follow here.
+
+  Each writes its state, reloads (a manifest is only read at load), and prints
+  in plain words on the page what it is doing and what a following bar means.
+  **Ask for a reading in those terms** — "test 1: no, test 2: yes" — not in
+  terms of the toggles.
+
   **The probe reproduces a theme switch in one tap now.** `set every condition
   to the app's` sets `replace element` — the mutation `applyTheme()` makes —
   plus the app's manifest, the locked document and the opaque pane, so pressing

@@ -188,8 +188,16 @@ the bottom — also a pass. The numbers are weaker evidence, being measured
 <table id="box"></table>
 
 <h1>does the browser follow the page colour?</h1>
-<p style="color:#3d5c46">Pick how the colour is announced, set the conditions,
-then cycle and watch Safari's own top and bottom bars.</p>
+<p style="color:#3d5c46">Three tests. Tap one, then tap
+<b style="color:#4ade80">cycle the colour</b> three times and watch Safari's own
+bars at the top and the foot of the screen. Each test says what it means.</p>
+<div>
+  <button id="t1">test 1 — only the tag moves</button>
+  <button id="t2">test 2 — only the page moves</button>
+  <button id="t3">test 3 — both, the app's shape</button>
+</div>
+<p id="guide" style="color:#9be9a8; margin-top:.6rem"></p>
+<p style="color:#3d5c46; margin-top:1rem">Or set the conditions by hand:</p>
 <div>
   <button id="mut" class="on">rewrite content (the tide's)</button>
   <button id="rep">replace element (a theme switch's)</button>
@@ -242,7 +250,7 @@ then cycle and watch Safari's own top and bottom bars.</p>
  * until the next CACHE bump. If the stamp below doesn't match the
  * release, this page is stale too and the rest of it may be lying.
  */
-const PROBE_BUILD = 'v72';
+const PROBE_BUILD = 'v73';
 
 async function serverRelease() {
   /* no-store gets past the HTTP cache. It does *not* get past the service
@@ -603,6 +611,7 @@ function cycle() {
 const HOW = { mut: 'rewrite content (the tide)', rep: 'replace element (a theme switch)',
               non: 'no meta at all' };
 function drawTc() {
+  drawGuide();
   for (const k of Object.keys(HOW))
     document.getElementById(k).classList.toggle('on', TC.how === k);
   document.getElementById('lock').classList.toggle('on', TC.locked);
@@ -655,6 +664,54 @@ for (const [id, which] of [['manbare', 'bare'], ['man', 'plain'], ['manred', 're
     save();
     location.reload();
   };
+/* Three named tests, because the settings below are a language and nobody
+ * should have to learn it to answer one question.
+ *
+ * This page has always moved the document's colour and the meta together, so
+ * every reading it ever gave was "something worked" and never "which". These
+ * separate them, and between them they say what Safari is actually reading:
+ *
+ *   1  the page holds one colour, the meta cycles   -> bars follow = the tag
+ *   2  no meta at all, the page cycles              -> bars follow = the page
+ *   3  both move, under every condition the app has -> the control
+ *
+ * Each is stored and reloaded, because a manifest is only read at load.
+ */
+const TESTS = {
+  t1: { how: 'rep', chan: false, paned: false, locked: true, veiled: false,
+        manifest: 'plain',
+        say: 'Test 1: the page stays one colour and only the theme-color tag ' +
+             'moves. If the bars change, Safari is reading the tag.' },
+  t2: { how: 'non', chan: true, paned: false, locked: true, veiled: false,
+        manifest: 'plain',
+        say: 'Test 2: there is no theme-color tag at all, and only the page ' +
+             'colour moves. If the bars change, Safari is reading the page.' },
+  t3: { how: 'rep', chan: true, paned: true, locked: true, veiled: false,
+        manifest: 'plain',
+        say: 'Test 3: both move, with every condition the app has \u2014 a locked ' +
+             "page, an opaque layer over it, the app's manifest. This is the " +
+             'control, and the bars should change here.' },
+};
+function drawGuide() {
+  const hit = Object.keys(TESTS).find(k => {
+    const t = TESTS[k];
+    return t.how === TC.how && t.chan === TC.chan && t.paned === TC.paned &&
+           t.locked === TC.locked && t.manifest === TC.manifest;
+  });
+  for (const k of Object.keys(TESTS))
+    document.getElementById(k).classList.toggle('on', k === hit);
+  document.getElementById('guide').textContent = hit
+    ? TESTS[hit].say + ' \u2014 now tap \u201ccycle the colour\u201d three times.'
+    : 'Hand-set conditions: no named test matches these.';
+}
+for (const k of Object.keys(TESTS))
+  document.getElementById(k).onclick = () => {
+    const { say, ...state } = TESTS[k];
+    Object.assign(TC, state);
+    save();
+    location.reload();
+  };
+
 /* The app's own shape, in one tap, set up as the event that is actually
    being reported: a theme switch. `rep` is the mutation applyTheme() makes,
    the manifest is the app's (background_color, no theme_color), the document
