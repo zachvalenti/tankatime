@@ -93,7 +93,15 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
   this tint over a couple of hundred milliseconds rather than snapping it, so
   writing it every frame leaves the chrome chasing a value it never reaches.
   For the same reason `setThemeColor()` rewrites the attribute rather than
-  replacing the element: replacing it restarts that ease at every step.
+  replacing the element during a rise: replacing it restarts that ease at every
+  step. (Which mutation each *event* wants is its own long story — see the
+  manifest entry near the end.)
+
+  **`floodChrome()` writes two things in a browser tab**, from the one hex: the
+  meta, and `--screen`. Safari does not read the tag live and does read the
+  document background, so the second write is the one its bars actually follow.
+  In the installed app it writes only the meta and leaves `--screen` to
+  `floodBand()`. Both halves are load-bearing; see the `--screen` entry below.
 
   Assert the walk has several distinct values but not dozens, that it never
   overshoots the flooded colour, that `stop()` returns it *exactly* to the
@@ -235,26 +243,56 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
   reading that made this plain) and the band has nothing to do with the
   keyboard. The readout flags `(keyboard)` when the two disagree.
 
-  **`floodBand()` runs in standalone only, and a browser tab must be left
-  alone.** The band is a standalone artefact — the status-bar height that
-  black-translucent pushed off the bottom of the web view — and a tab has
-  nothing of the kind. Safari's own bars sit outside the viewport at both ends
-  and take `theme-color`, which `floodChrome` ramps on the whole-screen average:
-  the right number for a strip at the top. Writing `--screen` in a tab buys
-  nothing and costs something, because `html` and `body` carry it and Safari
-  samples the page for its bars — so from v64 to v67 it handed them the colour
-  of the water's *bottom row* and Safari's bars stopped following the page the
-  way they had since v52. Reported, and a real regression. Gated on
-  `navigator.standalone || (display-mode: standalone)` now; prefer
-  `navigator.standalone` first, since the media query has answered "no" from
-  inside an installed app before (see the probe's own note).
+  **`--screen` has two drivers, and which one writes it is the whole story.**
+  Both a tab and the installed app need the channel moved; they need *different
+  numbers* in it, and three releases were spent learning that the hard way.
+
+  - **Standalone: `floodBand()`, off the canvas's last row.** The band is a
+    standalone artefact — the status-bar height that black-translucent pushed
+    off the bottom of the web view — and it must be the water's own bottom
+    edge, per everything above.
+  - **A tab: `floodChrome()`, off the whole-screen `cover`.** Safari's own bars
+    sit outside the viewport at both ends and want the page's average, not its
+    last row. `floodChrome` already computes exactly that colour for
+    `theme-color`, so it writes the same hex into `--screen` when `!inApp` —
+    one number, two roads.
+
+  `floodBand()` is gated on `navigator.standalone || (display-mode: standalone)`;
+  prefer `navigator.standalone` first, since the media query has answered "no"
+  from inside an installed app before (see the probe's own note).
+
+  **Two reports, one after the other, and the second is the trap.** From v64 to
+  v67 `floodBand` ran in a tab too, so Safari's bars wore the colour of the
+  water's *bottom row* while the page around them was barely wet — right
+  channel, wrong number. Gating it (v68/v69) fixed the colour and stopped the
+  bars following *at all*, because `theme-color` on its own cannot move them
+  live (see the manifest note below) — the channel was the only thing that ever
+  had. So do not "simplify" this back to a single writer, in either direction:
+  turning the channel off in a tab kills the live follow, and letting the band's
+  number reach a tab brings the bottom-row colour back.
 
   **Which means every band test needs `addInitScript` to claim standalone**:
   `Object.defineProperty(navigator, 'standalone', { get: () => true })` before
   `goto`. Chromium is a tab, so without it `floodBand` correctly returns early
   and five suites fail at once for the right reason — the tests lost their
-  premise, not the code. Assert the tab case too, in the same run: `body` pinned
-  to the theme through a whole hold while `theme-color` still ramps.
+  premise, not the code. **And every hold needs text on the page**: `startHold()`
+  bails on `!getText().trim()`, so a suite that presses `#clear` on an empty
+  draft measures a canvas that never sized itself off 300x150 and passes every
+  colour assertion by comparing two theme colours.
+
+  Assert the tab case in the same run, and assert it against the *previous*
+  tree: `body` and `html` walk eleven distinct values through a hold and equal
+  `theme-color`'s hex at every single sample, while `.base` never moves; on the
+  v69 tree the same hold gives `body` exactly one value, which is the reported
+  regression reproduced. In standalone, assert the opposite — `body` and the
+  meta stay tens of steps apart (44/255 at full tide), which is what proves
+  `floodChrome` is keeping its hands off the band.
+
+  **Composite before you average, not after.** `getImageData` is
+  *un-premultiplied*, so averaging the row's RGB and its alpha separately and
+  compositing the two means is not the colour anyone sees — it read 617/255 off
+  a build whose real gap was 2/255. Composite each pixel over `--bg` first, then
+  average.
 
   **Test it against press length, and against the previous release.** Sample the
   canvas's real last row (averaged across x, composited over `--bg`) against
@@ -346,6 +384,17 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
     fall. Both are single deliberate events with no ease worth protecting, and
     both are the moments Safari was ignoring.
 
+  **Which leaves the tide with no lever on Safari at all, and that is the point
+  to hold on to.** A rise is ten rewrites, and a Safari with a manifest linked
+  reads none of them — so `theme-color` moves the bars on a theme switch, on
+  `dryChrome()`, and never once while the water is climbing. The thing that
+  *does* follow live is the document's background colour, which `html` and
+  `body` carry as `--screen`; that is why `floodChrome()` writes both, and why
+  the tab half of the `--screen` note above is not an optimisation to be tidied
+  away. Every "fix the live follow by replacing the element on every step"
+  instinct has to answer the ease problem first, and the channel already
+  answers it for free.
+
   **A replace orphans anything holding that node.** `setThemeColor()` re-queries
   on every call for exactly this reason, and so does the probe's `tcMeta()`.
   A MutationObserver bound to the *element* goes deaf the moment it is
@@ -357,7 +406,10 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
   mutation adding a new `theme-color` node and lands the theme exactly; the rise
   produces several attribute rewrites and **zero** replaces; the fall ends on a
   replace; and there is exactly one meta in `<head>` throughout. Also assert
-  `manifest.webmanifest` still has no `theme_color` key at all.
+  `manifest.webmanifest` still has no `theme_color` key at all. In a tab, assert
+  the meta and `body` hold the *same* hex at every sample of a rise — the tag is
+  for the engines that read it, the channel is for the one that doesn't, and
+  they are never allowed to disagree.
 
   None of this is visible in Chromium, which does not tint anything. Reproduce
   it on a phone with `probe.html`, whose experiment varies each candidate

@@ -1424,10 +1424,29 @@ const water = (() => {
    * much of the screen as the water has taken. At the full flood the
    * chrome is exactly the flooded page and the whole screen is one thing.
    *
+   * On iOS that lever turns out to be half a lever. Safari reads
+   * theme-color once, at parse, and a document with a manifest linked never
+   * gets it read again — the tag lands the launch colour and nothing after
+   * it. What Safari does keep following is the document's own background
+   * colour, which html and body carry as --screen. So in a tab the two are
+   * written together from the same number: the tag for every engine that
+   * honours it, the channel for the one that doesn't.
+   *
+   * The channel takes `cover` here, the whole-screen average — not the
+   * band's last-row alpha. That distinction is the whole of the v64-v67
+   * bug: the band's number went into --screen in a tab as well, so Safari's
+   * bars wore the colour of the water's bottom row while the page around
+   * them was barely wet. Right channel, wrong number. Gating the band off
+   * in a tab fixed the colour and cost the live follow with it; writing the
+   * channel from here is what gives both back. Standalone still takes the
+   * band's number — see floodBand().
+   *
    * Stepped and throttled deliberately. Browsers ease this tint over a
    * couple of hundred milliseconds rather than snapping it, so writing it
    * every frame would leave the chrome chasing a value it never reaches.
-   * Ten steps over three seconds is under one change per ease.
+   * Ten steps over three seconds is under one change per ease. The channel
+   * rides the same steps: it is the same colour arriving by another road,
+   * and two rates would be two colours.
    */
   const CHROME_STEPS = 10, CHROME_MS = 180;
   let chromeStep = -1, chromeAt = 0;
@@ -1444,13 +1463,25 @@ const water = (() => {
     return THEMES[document.documentElement.dataset.theme || 'room'];
   }
 
+  /* Standalone or a tab, which decides who writes --screen.
+   *
+   * navigator.standalone is the one iOS answers honestly here; the
+   * display-mode query has reported "no" from inside an installed app
+   * before, which is what the probe's own note about it is for.
+   */
+  const inApp = !!navigator.standalone ||
+    matchMedia('(display-mode: standalone)').matches;
+
   // cover: how much of the screen the water has taken, 0 to 1
   function floodChrome(cover, now) {
     if (!HEX.test(tide) || !HEX.test(themeBg())) return;
     const step = Math.round(cover * CHROME_STEPS);
     if (step === chromeStep || now - chromeAt < CHROME_MS) return;
     chromeStep = step; chromeAt = now;
-    setThemeColor(mixHex(themeBg(), tide, (step / CHROME_STEPS) * tideAlpha));
+    const hex = mixHex(themeBg(), tide, (step / CHROME_STEPS) * tideAlpha);
+    setThemeColor(hex);
+    // and in a tab, the channel Safari is actually still listening to
+    if (!inApp) document.documentElement.style.setProperty('--screen', hex);
   }
 
   /* The band iOS keeps below the page, and the one rule that makes it
@@ -1492,23 +1523,17 @@ const water = (() => {
    *
    * The band is a standalone artefact: it is the status bar's height that
    * black-translucent pushed off the bottom of the web view, and a browser
-   * tab has nothing of the kind. Safari's own bars sit outside the viewport
-   * at both ends and take `theme-color`, which floodChrome ramps on the
-   * whole-screen average — the right number for a strip at the top.
+   * tab has nothing of the kind. A tab's chrome is Safari's own bars, which
+   * sit outside the viewport at both ends and want the whole-screen
+   * average — so floodChrome writes --screen there and this does not.
    *
-   * Writing --screen in a tab therefore buys nothing and costs something:
-   * html and body carry it, and Safari samples the page for its bars, so it
-   * handed both of them the colour of the water's *bottom row* instead. The
-   * bars stopped following the page the way they had since v52. So the
-   * channel moves in standalone only, and a tab is left to theme-color.
-   *
-   * navigator.standalone is the one iOS answers honestly here; the
-   * display-mode query has reported "no" from inside an installed app
-   * before, which is what the probe's own note about it is for.
+   * Which channel is right was never the question; the number was. From v64
+   * to v67 this ran in a tab too, and Safari's bars wore the colour of the
+   * water's *bottom row* instead of the page's. Reported, and a real
+   * regression. Gating it here fixed the colour and stopped the bars
+   * following at all, because theme-color alone cannot move them — that was
+   * reported in its turn, and floodChrome carries the tab now.
    */
-  const inApp = !!navigator.standalone ||
-    matchMedia('(display-mode: standalone)').matches;
-
   function floodBand() {
     if (!inApp) return;
     if (!HEX.test(tide) || !HEX.test(themeBg())) return;
