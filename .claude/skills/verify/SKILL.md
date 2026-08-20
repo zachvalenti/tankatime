@@ -349,6 +349,14 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
     up across v54–v59 were buying nothing. `/version` still prints the box, and
     `covers viewport` is the only verdict that means anything.
 
+  Assert the inline channel separately from `--screen`, because they can
+  disagree and only one of them is read: the root carries an inline
+  `background-color` from boot; a theme switch moves it to the theme's hex with
+  no redraw; it walks with the tide through a flood and never disagrees with
+  computed `--screen`; `dryChrome()` returns it to the theme while *removing*
+  `--screen`; and the card dims it and gives it back. Drive the card with
+  `showModal()` rather than a click, so a hook on the button cannot pass.
+
   Assert: at rest `html`, `body` and `.base` all compute to the theme and
   `.room` paints nothing; at full flood `--screen` equals the meta's flooded
   value with `html`/`body` following and `.base` untouched; `removeProperty` on
@@ -444,14 +452,43 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
     another release restoring it.
 
   **MEASURED ON THE DEVICE, and it overturns this whole entry. Read this
-  before anything else here.** Three readings from `probe.html`, all under the
+  before anything else here.** Four readings from `probe.html`, all under the
   app's own conditions (the app's manifest linked, document locked):
 
   | test | what moved | Safari's bars |
   |---|---|---|
   | 1 | only the `theme-color` tag | **did not follow** |
-  | 2 | only the page's background colour, no tag at all | **followed** |
+  | 2 | only the page's background colour, written as a direct style on the root | **followed** |
   | 3 | both, plus an opaque fixed layer over the background | **followed** |
+  | 4 | test 2 again, with the colour moved through `var()` + an attribute — *the app's route* | **did not follow** |
+
+  **Test 2 against test 4 is the bug.** Same element, same computed colour,
+  same conditions; the only difference is the route, and the results are
+  opposite. `html { background: var(--screen) }` with `--screen` resolving
+  through `--bg` and `--bg` selected by `[data-theme]` paints the page
+  perfectly and tells iOS Safari nothing. A direct write to the element's own
+  style does. Which is why five releases of reasoning about *which mutation
+  the meta wants* went nowhere — on this phone the meta is not connected to
+  anything at all.
+
+  **The fix is `paintScreen()` in `app.js`.** `--screen` is untouched — `body`
+  takes it, `html:has(dialog[open])` dims it, `floodBand()` steps it — and
+  `paintScreen()` mirrors whatever it currently resolves to onto the root's
+  **inline `background-color`**, which outranks the stylesheet and is the write
+  the chrome notices. Every path that moves the effective colour calls it: a
+  theme switch, each flood step (in both the tab and the band), `dryChrome()`
+  at the end of a fall, and the card opening and closing. Pass the hex when the
+  caller knows it; omitting it reads computed `--screen`, which is right in
+  every case but forces a style recalc, so not on per-frame paths.
+
+  **Watch the card through a MutationObserver on `open`, not through the
+  button.** The dim is a stylesheet rule the browser applies by itself, and the
+  root's inline colour outranks it, so `paintScreen()` must run on both edges
+  or the strip stays bright. Hooking the button's click handler passed a
+  hand-driven test and failed the existing suite, which opens the dialog with
+  `showModal()` directly — correctly, because Esc, a backdrop click and any
+  future caller all bypass the button. The `open` attribute is the state
+  itself and cannot be bypassed.
 
   So on this phone, with a manifest linked:
 
@@ -470,8 +507,8 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
   mechanism after all, and `setThemeColor()` is decorative on iOS and load
   bearing only for engines that honour the tag. Keep it; do not reason from it.
 
-  **The reading that survived all of that, and the one difference still
-  standing.** The app moves the page colour on every theme switch — measured
+  **How the last difference was found, kept because the method is the useful
+  part.** The app moves the page colour on every theme switch — measured
   here, `room #0a0c0a / paper #f6f1e3 / dusk #171321`, on `html`, `body` and
   `.base` alike — and on the phone the bars do not follow it until a manual
   reload. Under the table above that should be impossible. What is left is
@@ -484,11 +521,11 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
     changes by **setting an attribute on `<html>`**.
 
   Same computed colour, a completely different route to it, and nothing in the
-  probe could tell the two apart. **Test 4 is that comparison**: test 2's shape
-  exactly (no tag, only the page colour moving) with the colour moved the app's
-  way instead. Test 2 following and test 4 not following localises the bug to
-  the route, and the fix is then to write the colour where WebKit will notice
-  it rather than to keep reasoning about which element holds it.
+  probe could tell the two apart until test 4 held everything else fixed and
+  swapped only that. **When two readings that should agree don't, the next test
+  is the one that changes exactly one thing between them** — five releases here
+  changed the element, the mutation, the manifest and the channel, and none of
+  them was ever the variable.
 
   **And an instrument that does not re-measure is worse than none.** `/version`
   shipped reporting `page` and `tag` — and `setRelease()` only runs from

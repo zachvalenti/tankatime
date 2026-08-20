@@ -1520,7 +1520,10 @@ const water = (() => {
     const hex = mixHex(themeBg(), tide, (step / CHROME_STEPS) * tideAlpha);
     setThemeColor(hex);
     // and in a tab, the channel Safari is actually still listening to
-    if (!inApp) document.documentElement.style.setProperty('--screen', hex);
+    if (!inApp) {
+      document.documentElement.style.setProperty('--screen', hex);
+      paintScreen(hex);
+    }
   }
 
   /* The band iOS keeps below the page, and the one rule that makes it
@@ -1588,8 +1591,9 @@ const water = (() => {
     const step = Math.round((alpha / tideAlpha) * BAND_STEPS);
     if (step === bandStep) return;
     bandStep = step;
-    document.documentElement.style.setProperty('--screen',
-      mixHex(themeBg(), tide, (step / BAND_STEPS) * tideAlpha));
+    const hex = mixHex(themeBg(), tide, (step / BAND_STEPS) * tideAlpha);
+    document.documentElement.style.setProperty('--screen', hex);
+    paintScreen(hex);
   }
 
   // Everything the flood touched outside the canvas, put back. Called from
@@ -1607,6 +1611,7 @@ const water = (() => {
     // removed rather than reset, so the stylesheet's var(--bg) governs again
     // and the dialog's own --screen rule can still win
     document.documentElement.style.removeProperty('--screen');
+    paintScreen(themeBg());
   }
 
   /* Size the canvas in device pixels, capped at 2× — sharp on phone
@@ -1817,6 +1822,44 @@ clearBtn.addEventListener('blur', cancelHold);
  * deliberate event, no ease worth protecting — replaces the element, which
  * is the one mutation every engine is obliged to see. `fresh` picks.
  */
+/* The colour the chrome actually reads, written where WebKit will see it
+ * change.
+ *
+ * Measured on the phone with probe.html, four readings under the app's own
+ * conditions. Only the theme-color tag moving: the bars ignored it. Only the
+ * page's background colour moving, written as a direct style on the root:
+ * the bars followed. Both moving, with an opaque fixed layer over the
+ * background: they followed, and wore the background's colour rather than the
+ * layer's. And then the one that named the bug — the same test again with the
+ * colour moved *the way this app moves it*, through a custom property
+ * redeclared per theme and selected by an attribute on <html>: the bars did
+ * not follow.
+ *
+ * Same element, same computed colour, different route, opposite result. So
+ * `html { background: var(--screen) }` is enough to paint the page and not
+ * enough to tell the browser its colour has changed; a direct write to the
+ * element's own style is. That is the whole bug, and it is why five releases
+ * of reasoning about *which mutation the meta wants* got nowhere: the meta
+ * was never connected to anything on this phone.
+ *
+ * So --screen stays exactly as it is — body takes it, the dialog rule dims
+ * it, floodBand() steps it — and this mirrors whatever it currently resolves
+ * to onto the root's inline background-color, which outranks the stylesheet
+ * and is the write the chrome notices. Every path that moves the effective
+ * colour calls this: a theme switch, each flood step, dryChrome() at the end
+ * of a fall, and the card opening and closing.
+ *
+ * Pass the hex when the caller already knows it. Omitting it reads the
+ * computed --screen instead, which is the right answer in every case
+ * including the ones CSS decides on its own — but it forces a style recalc,
+ * so it is not for the per-frame paths.
+ */
+function paintScreen(hex) {
+  const root = document.documentElement;
+  const v = hex || getComputedStyle(root).getPropertyValue('--screen').trim();
+  if (v) root.style.backgroundColor = v;
+}
+
 function setThemeColor(hex, fresh) {
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta && !fresh) { meta.setAttribute('content', hex); return; }
@@ -1831,6 +1874,9 @@ function applyTheme(name) {
   root.classList.add('swapping');
   if (name === 'room') delete root.dataset.theme;
   else root.dataset.theme = name;
+  // the write the chrome reads — the attribute above moves every colour on
+  // the page and, on iOS, tells the browser nothing at all
+  paintScreen(THEMES[name]);
   // a replace, not a rewrite: this is the event Safari was ignoring
   setThemeColor(THEMES[name], true);
   try { localStorage.setItem(THEME_KEY, name); } catch (_) {}
@@ -1865,6 +1911,19 @@ about.addEventListener('click', e => {
 });
 // whichever way it closes, hand the pen back
 about.addEventListener('close', focusEnd);
+
+/* The card dims the band, and the dimming is a stylesheet rule the browser
+ * applies by itself: html:has(dialog[open]) rewrites --screen. paintScreen()
+ * has to run on both edges of that or the root's inline colour — which
+ * outranks the rule — holds the undimmed value and the strip stays bright.
+ *
+ * Watched on the element rather than hooked onto the button, because the
+ * button is only one way in. Esc closes natively, a backdrop click closes
+ * below, and any future caller of showModal() would silently lose the dim.
+ * The open attribute is the state itself, so observing it cannot be bypassed.
+ */
+new MutationObserver(() => paintScreen())
+  .observe(about, { attributes: true, attributeFilter: ['open'] });
 
 // keep the caret where it is when a toolbar button is clicked,
 // and acknowledge every press with a tick where haptics exist
