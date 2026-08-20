@@ -384,6 +384,36 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
     fall. Both are single deliberate events with no ease worth protecting, and
     both are the moments Safari was ignoring.
 
+  **The reported event is a theme switch, and v50 did it right — with the same
+  mutation and the same manifest that are in the tree today.** This is the
+  finding that should end the guessing, so read it before writing any code:
+
+  - `c3ce34a` (v50) removed `theme_color` from the manifest, shipped a
+    `setThemeColor()` that **always replaced** the element, and was verified on
+    the phone: the chrome followed the theme. That release is the last known
+    good.
+  - `manifest.webmanifest` is **byte-identical** between v50 and now. It still
+    declares `background_color` and still declares no `theme_color`.
+  - `applyTheme()` today calls `setThemeColor(hex, true)`, which replaces the
+    element — the *same mutation v50 shipped*.
+  - The `<meta name="theme-color">` tag and the rest of `<head>` are unchanged
+    between the two.
+
+  So the mutation is not the variable and the manifest is not the variable, and
+  v69's theory — "a manifest is linked, therefore Safari reads the tag once" —
+  **is contradicted by v50's own on-phone result**. Whatever broke the theme
+  switch is in `app.js` or `style.css`, in something that changed after v50:
+  `.base` arriving as an opaque fixed layer, `html`/`body` moving from
+  `var(--bg)` to `var(--screen)`, `.edges` becoming a mask, or the transitions
+  moving off `body`. Do not re-litigate the meta.
+
+  **Watch particularly for a frozen `--screen`.** It is set as an *inline*
+  property on `documentElement` and inline beats every stylesheet rule, so if a
+  flood ever ends without `dryChrome()` the channel keeps a literal hex and
+  `html`/`body` stop following the theme entirely. That has happened once
+  already and is documented above; it is also the shape of failure that would
+  look exactly like "the chrome stopped following a theme switch".
+
   **v70 tried the document's background colour, and the phone said no.** The
   reasoning was sound and the result was negative: `floodChrome()` writes the
   flooded hex into `--screen` in a tab, `body` and `html` demonstrably walk
@@ -412,6 +442,15 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
     v52" is an inference written down as history, and nothing in this file
     records anyone watching that happen. Worth asking outright before spending
     another release restoring it.
+
+  **The probe reproduces a theme switch in one tap now.** `set every condition
+  to the app's` sets `replace element` — the mutation `applyTheme()` makes —
+  plus the app's manifest, the locked document and the opaque pane, so pressing
+  `cycle` from there is as near as another page can get to tapping the theme
+  button. The manifest control is four-way, because "a manifest is linked",
+  "it declares a `background_color`" (the app does) and "it declares a
+  `theme_color`" (the app doesn't) are three separate variables and only the
+  last was ever on offer here.
 
   **The probe answers the first two now.** `opaque layer over it (violet)` puts
   an opaque fixed layer in a colour that appears in no cycle colour between the

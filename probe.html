@@ -118,7 +118,12 @@ window.TC = { colours: ['#101410', '#f6f1e3', '#171321'], at: 0,
    ever been asked here. Old saved state carries the boolean; fold it in. */
 try { Object.assign(window.TC, JSON.parse(localStorage.tcProbe || '{}')); } catch (e) {}
 if (typeof TC.manifest === 'boolean') TC.manifest = TC.manifest ? 'red' : 'non';
-window.MANIFESTS = { plain: 'probe-plain.webmanifest', red: 'probe.webmanifest' };
+/* Three manifests, because "a manifest is linked" is not one variable but
+   three. The app's declares no theme_color and *does* declare a
+   background_color, and nothing here had ever separated those. */
+window.MANIFESTS = { bare: 'probe-bare.webmanifest',      // no colour keys
+                     plain: 'probe-plain.webmanifest',    // background_color only — the app's
+                     red: 'probe.webmanifest' };          // theme_color, loud
 (function () {
   const hex = TC.colours[TC.at];
   document.documentElement.style.background = TC.chan === false ? TC.colours[0] : hex;
@@ -186,8 +191,8 @@ the bottom — also a pass. The numbers are weaker evidence, being measured
 <p style="color:#3d5c46">Pick how the colour is announced, set the conditions,
 then cycle and watch Safari's own top and bottom bars.</p>
 <div>
-  <button id="mut" class="on">rewrite content</button>
-  <button id="rep">replace element</button>
+  <button id="mut" class="on">rewrite content (the tide's)</button>
+  <button id="rep">replace element (a theme switch's)</button>
   <button id="non">no meta at all</button>
 </div>
 <div>
@@ -202,7 +207,8 @@ then cycle and watch Safari's own top and bottom bars.</p>
   <button id="app">set every condition to the app's (reloads)</button>
 </div>
 <div>
-  <button id="man">manifest, no theme_color — the app's (reloads)</button>
+  <button id="manbare">manifest, no colours at all (reloads)</button>
+  <button id="man">manifest, background_color — the app's (reloads)</button>
   <button id="manred">manifest, theme_color red (reloads)</button>
 </div>
 <div>
@@ -236,7 +242,7 @@ then cycle and watch Safari's own top and bottom bars.</p>
  * until the next CACHE bump. If the stamp below doesn't match the
  * release, this page is stale too and the rest of it may be lying.
  */
-const PROBE_BUILD = 'v71';
+const PROBE_BUILD = 'v72';
 
 async function serverRelease() {
   /* no-store gets past the HTTP cache. It does *not* get past the service
@@ -525,10 +531,11 @@ function draw() {
  *   locked    the document cannot scroll, which is what stopped the
  *             toolbar wandering under the keyboard and is the app's
  *             single biggest structural change
- *   manifest  none · one with no theme_color (the app's) · one with a loud
- *             red. Three states, not two: "a manifest is linked" and "the
- *             manifest names a colour" are separate variables and only the
- *             second was ever on offer here
+ *   manifest  none · no colour keys · background_color only (the app's) · a
+ *             loud red theme_color. Four states, not two: "a manifest is
+ *             linked", "it declares a background_color" and "it declares a
+ *             theme_color" are three variables, and only the last was ever
+ *             on offer here
  *   veiled    a fixed layer across the whole viewport, which is how the
  *             faded edges are drawn — and which stands exactly where
  *             anything sampling pixels would be looking
@@ -593,12 +600,14 @@ function cycle() {
   drawTc();
 }
 
-const HOW = { mut: 'rewrite content', rep: 'replace element', non: 'no meta at all' };
+const HOW = { mut: 'rewrite content (the tide)', rep: 'replace element (a theme switch)',
+              non: 'no meta at all' };
 function drawTc() {
   for (const k of Object.keys(HOW))
     document.getElementById(k).classList.toggle('on', TC.how === k);
   document.getElementById('lock').classList.toggle('on', TC.locked);
   document.getElementById('veil').classList.toggle('on', TC.veiled);
+  document.getElementById('manbare').classList.toggle('on', TC.manifest === 'bare');
   document.getElementById('man').classList.toggle('on', TC.manifest === 'plain');
   document.getElementById('manred').classList.toggle('on', TC.manifest === 'red');
   document.getElementById('chan').classList.toggle('on', TC.chan);
@@ -616,7 +625,8 @@ function drawTc() {
       TC.paned ? 'yes, violet #3a2fb0 (like .base)' : 'no'}</b></td></tr>` +
     `<tr><td>manifest linked</td><td><b>${
       TC.manifest === 'red' ? 'yes, theme_color #e05252'
-      : TC.manifest === 'plain' ? 'yes, no theme_color (like the app)'
+      : TC.manifest === 'plain' ? 'yes, background_color only (like the app)'
+      : TC.manifest === 'bare' ? 'yes, no colour keys'
       : 'no'}</b></td></tr>`;
 }
 
@@ -639,18 +649,23 @@ document.getElementById('chan').onclick = () => {
   save(); drawTc();
 };
 // a manifest is only read at load, so these have to take the page with them
-for (const [id, which] of [['man', 'plain'], ['manred', 'red']])
+for (const [id, which] of [['manbare', 'bare'], ['man', 'plain'], ['manred', 'red']])
   document.getElementById(id).onclick = () => {
     TC.manifest = TC.manifest === which ? 'non' : which;
     save();
     location.reload();
   };
-/* The app's own shape, in one tap. Every hunt so far has started by
-   guessing which condition to set and getting a different subset each time;
-   this is the subset the app actually occupies. Reloads, because the
-   manifest is only ever read at load. */
+/* The app's own shape, in one tap, set up as the event that is actually
+   being reported: a theme switch. `rep` is the mutation applyTheme() makes,
+   the manifest is the app's (background_color, no theme_color), the document
+   cannot scroll and an opaque layer stands over its background.
+
+   Press `cycle` from here and the phone is doing, as nearly as this page can
+   arrange, exactly what tapping the theme button does. Every hunt so far
+   started by guessing which conditions to set and got a different subset each
+   time. Reloads, because a manifest is only ever read at load. */
 document.getElementById('app').onclick = () => {
-  Object.assign(TC, { how: 'mut', locked: true, veiled: false, paned: true,
+  Object.assign(TC, { how: 'rep', locked: true, veiled: false, paned: true,
                       manifest: 'plain', chan: true });
   save();
   location.reload();
