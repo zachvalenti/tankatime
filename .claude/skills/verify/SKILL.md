@@ -462,6 +462,34 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
   | 3 | both, plus an opaque fixed layer over the background | **followed** |
   | 4 | test 2 again, with the colour moved through `var()` + an attribute — *the app's route* | **did not follow** |
 
+  **And then the fifth combination, which is the one that had never been
+  tried: a tag present *and* the page moving by a direct style.** That is what
+  v76 shipped, and the bars still did not follow. Line the readings up and only
+  one combination works, and it is the only one with **no `theme-color`
+  element in the document at all**:
+
+  | tag | page colour | bars |
+  |---|---|---|
+  | present, moving | still | no |
+  | **absent** | **direct style** | **YES** |
+  | absent | `var()` + attribute | no |
+  | present | direct style | no |
+
+  **So on this engine the tag is not a lever, it is a lid.** With one in the
+  document Safari uses it, reads it once at parse, and stops looking at the
+  page — it does not merely fail to update the bars, it prevents the thing
+  that would. Every release from v52 to v76 wrote that tag more carefully than
+  the last, and every one of them was screwing the lid down tighter.
+
+  `setThemeColor()` **removes the tag outright on Apple WebKit** and never
+  creates one (`navigator.vendor` carries `Apple`; Chrome and Firefox report
+  their own or empty). Removing it is not a guess and costs nothing: the first
+  reading is a direct measurement that the tag does nothing there. Engines that
+  do read it, and do not sample the page, keep it exactly as before. **Assert
+  both halves under a faked `navigator.vendor`** — zero metas by first paint,
+  through every theme switch and a whole flood and fall, on Apple; exactly one
+  landing the theme everywhere else.
+
   **Test 2 against test 4 is the bug.** Same element, same computed colour,
   same conditions; the only difference is the route, and the results are
   opposite. `html { background: var(--screen) }` with `--screen` resolving

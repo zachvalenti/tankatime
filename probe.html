@@ -215,6 +215,7 @@ bars at the top and the foot of the screen. Each test says what it means.</p>
   <button id="t2">test 2 — only the page moves</button>
   <button id="t3">test 3 — both, the app's shape</button>
   <button id="t4">test 4 — only the page, moved the app's way</button>
+  <button id="t5">test 5 — the page moves, but a tag is present</button>
 </div>
 <p id="guide" style="color:#9be9a8; margin-top:.6rem"></p>
 <p style="color:#3d5c46; margin-top:1rem">Or set the conditions by hand:</p>
@@ -270,7 +271,7 @@ bars at the top and the foot of the screen. Each test says what it means.</p>
  * until the next CACHE bump. If the stamp below doesn't match the
  * release, this page is stale too and the rest of it may be lying.
  */
-const PROBE_BUILD = 'v76';
+const PROBE_BUILD = 'v77';
 
 async function serverRelease() {
   /* no-store gets past the HTTP cache. It does *not* get past the service
@@ -718,6 +719,12 @@ const TESTS = {
         manifest: 'plain', pageby: 'inline',
         say: 'Test 2: there is no theme-color tag at all, and only the page ' +
              'colour moves. If the bars change, Safari is reading the page.' },
+  t5: { how: 'rep', chan: true, paned: false, locked: true, veiled: false,
+        manifest: 'plain', pageby: 'inline',
+        say: 'Test 5: test 2 exactly — the page colour moving by a direct ' +
+             'style — except a theme-color tag is present as well. If test 2 ' +
+             'changed the bars and this one does not, the tag is not merely ' +
+             'useless here, it is blocking the thing that works.' },
   t4: { how: 'non', chan: true, paned: false, locked: true, veiled: false,
         manifest: 'plain', pageby: 'var',
         say: 'Test 4: the same as test 2 — no tag, only the page colour ' +

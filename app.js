@@ -1860,8 +1860,36 @@ function paintScreen(hex) {
   if (v) root.style.backgroundColor = v;
 }
 
+/* On Apple's WebKit the tag is not a lever, it is a lid.
+ *
+ * Four readings from the phone, and only one combination moved the bars:
+ *
+ *   tag present and moving, page still            no
+ *   tag ABSENT, page moved by a direct style      YES
+ *   tag absent, page moved through var()          no
+ *   tag present, page moved by a direct style     no   <- what v76 shipped
+ *
+ * The one that worked is the one with no theme-color element in the document
+ * at all. With a tag present Safari uses it, reads it once at parse, and stops
+ * looking at the page — so the tag does not merely fail to update the bars, it
+ * prevents the thing that would. Every release from v52 to v76 kept writing
+ * that tag more carefully, and each one was screwing the lid on tighter.
+ *
+ * Removing it costs nothing here, and that is not a guess: the first reading
+ * is a direct measurement that the tag does nothing on this engine. Other
+ * engines do read it and do not sample the page, so they keep it.
+ *
+ * navigator.vendor is 'Apple Computer, Inc.' on Safari and on nothing else
+ * that matters — Chrome and Firefox report their own or an empty string. A
+ * false positive costs a browser its chrome tint; a false negative costs
+ * Safari the whole feature, which is the bug being fixed.
+ */
+const APPLE = /Apple/.test(navigator.vendor || '');
+
 function setThemeColor(hex, fresh) {
   const meta = document.querySelector('meta[name="theme-color"]');
+  // the lid comes off and stays off; paintScreen() is the channel here
+  if (APPLE) { if (meta) meta.remove(); return; }
   if (meta && !fresh) { meta.setAttribute('content', hex); return; }
   const made = document.createElement('meta');
   made.setAttribute('name', 'theme-color');
