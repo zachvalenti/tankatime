@@ -92,11 +92,17 @@
    fair comparison if the reload starts on the colour you cycled to
    rather than resetting to the one written in the file. */
 window.TC = { colours: ['#101410', '#f6f1e3', '#171321'], at: 0,
-              how: 'mut', locked: false, veiled: false, manifest: false };
+              how: 'mut', locked: false, veiled: false, manifest: false,
+              /* the confound this page shipped with: it always moved the
+                 document's background colour alongside the meta, so a "yes,
+                 Safari followed" reading never said which of the two it had
+                 followed. Default on, because that is the app's own shape —
+                 turn it off to vary the meta alone. */
+              chan: true };
 try { Object.assign(window.TC, JSON.parse(localStorage.tcProbe || '{}')); } catch (e) {}
 (function () {
   const hex = TC.colours[TC.at];
-  document.documentElement.style.background = hex;
+  document.documentElement.style.background = TC.chan === false ? TC.colours[0] : hex;
   const meta = document.querySelector('meta[name="theme-color"]');
   if (TC.how === 'non') meta.remove(); else meta.content = hex;
   if (TC.locked) document.documentElement.classList.add('locked');
@@ -160,6 +166,9 @@ then cycle and watch Safari's own top and bottom bars.</p>
   <button id="veil">fixed full-screen layer</button>
 </div>
 <div>
+  <button id="chan" class="on">page colour moves too</button>
+</div>
+<div>
   <button id="man">manifest, theme_color red (reloads)</button>
 </div>
 <div>
@@ -193,7 +202,7 @@ then cycle and watch Safari's own top and bottom bars.</p>
  * until the next CACHE bump. If the stamp below doesn't match the
  * release, this page is stale too and the rest of it may be lying.
  */
-const PROBE_BUILD = 'v69';
+const PROBE_BUILD = 'v70';
 
 async function serverRelease() {
   /* no-store gets past the HTTP cache. It does *not* get past the service
@@ -485,6 +494,13 @@ function draw() {
  *   veiled    a fixed layer across the whole viewport, which is how the
  *             faded edges are drawn — and which stands exactly where
  *             anything sampling pixels would be looking
+ *   chan      whether the document's own background colour moves with the
+ *             cycle. This page always moved it, which made every reading
+ *             ambiguous: `theme-color` and the page colour changed together,
+ *             so a bar that followed proved only that *something* worked.
+ *             Turn it off and the meta moves alone — and on iOS, with a
+ *             manifest linked, the bars then stop following, which is the
+ *             whole reason floodChrome() writes --screen as well.
  *
  * Reload is the control: it is known to pick up the right colour.
  */
@@ -493,10 +509,14 @@ function tcMeta() { return document.querySelector('meta[name="theme-color"]'); }
 function save() { try { localStorage.tcProbe = JSON.stringify(TC); } catch (e) {} }
 
 function paint(hex) {
-  root.style.background = hex;
+  // with the channel off the document's colour is pinned to the first colour
+  // in the cycle, so the meta is the only thing moving and a following bar
+  // can only have followed the meta
+  const page = TC.chan ? hex : TC.colours[0];
+  root.style.background = page;
   // the veil carries the colour too, the way the app's edges fade to --bg
   document.querySelector('.veil').style.background =
-    `linear-gradient(${hex} 0, transparent 12%, transparent 88%, ${hex} 100%)`;
+    `linear-gradient(${page} 0, transparent 12%, transparent 88%, ${page} 100%)`;
 }
 
 function announce(hex) {
@@ -528,11 +548,14 @@ function drawTc() {
   document.getElementById('lock').classList.toggle('on', TC.locked);
   document.getElementById('veil').classList.toggle('on', TC.veiled);
   document.getElementById('man').classList.toggle('on', TC.manifest);
+  document.getElementById('chan').classList.toggle('on', TC.chan);
   const meta = tcMeta();
   document.getElementById('tc').innerHTML =
     `<tr><td>page colour</td><td><b>${TC.colours[TC.at]}</b></td></tr>` +
     `<tr><td>meta says</td><td><b>${meta ? meta.content : '(no meta)'}</b></td></tr>` +
     `<tr><td>announced by</td><td><b>${HOW[TC.how]}</b></td></tr>` +
+    `<tr><td>page colour moves</td><td><b>${
+      TC.chan ? 'yes (like the app)' : 'no — meta alone'}</b></td></tr>` +
     `<tr><td>document scrolls</td><td><b>${TC.locked ? 'no (like the app)' : 'yes'}</b></td></tr>` +
     `<tr><td>fixed layer over it</td><td><b>${TC.veiled ? 'yes (like the app)' : 'no'}</b></td></tr>` +
     `<tr><td>manifest linked</td><td><b>${
@@ -551,6 +574,11 @@ for (const [id, key, cls] of [['lock', 'locked', 'locked'], ['veil', 'veiled', '
     root.classList.toggle(cls, TC[key]);
     save(); drawTc();
   };
+document.getElementById('chan').onclick = () => {
+  TC.chan = !TC.chan;
+  paint(TC.colours[TC.at]);
+  save(); drawTc();
+};
 // a manifest is only read at load, so this one has to take the page with it
 document.getElementById('man').onclick = () => {
   TC.manifest = !TC.manifest;
