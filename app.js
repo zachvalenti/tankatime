@@ -494,6 +494,19 @@ function clearRelease() {
   releaseLine = null;
 }
 
+/* Re-measure without redrawing the page.
+ *
+ * setRelease() runs from refresh(), and a theme switch is not a redraw — so
+ * the readout sat there reporting the theme it was written under while the
+ * page around it had changed. That is not a small thing for an instrument
+ * whose whole job is to say what colour the page currently is: the one
+ * screenshot taken to answer that question showed `theme paper` over a page
+ * that was plainly not paper. Anything that moves what geometry() measures
+ * has to call this. */
+function refreshRelease() {
+  if (releaseLine) releaseLine.setAttribute('data-release', release + geometry());
+}
+
 function setRelease(rows, src, modes) {
   clearRelease();
   if (!modes.version) return;
@@ -1822,8 +1835,11 @@ function applyTheme(name) {
   setThemeColor(THEMES[name], true);
   try { localStorage.setItem(THEME_KEY, name); } catch (_) {}
   // two frames: one for the new palette to paint, one to be sure it has
-  requestAnimationFrame(() => requestAnimationFrame(() =>
-    root.classList.remove('swapping')));
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    root.classList.remove('swapping');
+    // and the /version readout is measuring the colour that just moved
+    refreshRelease();
+  }));
 }
 
 themeBtn.addEventListener('click', () => {

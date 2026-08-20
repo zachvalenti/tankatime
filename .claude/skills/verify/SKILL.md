@@ -470,6 +470,34 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
   mechanism after all, and `setThemeColor()` is decorative on iOS and load
   bearing only for engines that honour the tag. Keep it; do not reason from it.
 
+  **The reading that survived all of that, and the one difference still
+  standing.** The app moves the page colour on every theme switch — measured
+  here, `room #0a0c0a / paper #f6f1e3 / dusk #171321`, on `html`, `body` and
+  `.base` alike — and on the phone the bars do not follow it until a manual
+  reload. Under the table above that should be impossible. What is left is
+  *how* the colour moves:
+
+  - `probe.html` has always written `root.style.background = hex` — **one
+    inline property, a literal colour**.
+  - The app never does that. `html { background: var(--screen) }`, `--screen`
+    resolves through `--bg`, `--bg` is redeclared per theme, and the theme
+    changes by **setting an attribute on `<html>`**.
+
+  Same computed colour, a completely different route to it, and nothing in the
+  probe could tell the two apart. **Test 4 is that comparison**: test 2's shape
+  exactly (no tag, only the page colour moving) with the colour moved the app's
+  way instead. Test 2 following and test 4 not following localises the bug to
+  the route, and the fix is then to write the colour where WebKit will notice
+  it rather than to keep reasoning about which element holds it.
+
+  **And an instrument that does not re-measure is worse than none.** `/version`
+  shipped reporting `page` and `tag` — and `setRelease()` only runs from
+  `refresh()`, which a theme switch is not. The one screenshot taken to answer
+  "does the page colour move?" showed `theme paper` over a page that was
+  plainly not paper, because the readout was written before the tap and never
+  rewritten. `applyTheme()` calls `refreshRelease()` now. Anything else that
+  moves what `geometry()` measures must do the same.
+
   **Cleared on the device, under the app's own conditions:** replacing the
   element, the app's manifest, a locked document and an opaque fixed layer over
   the background. The probe was set to all four at once and Safari's bars

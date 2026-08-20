@@ -38,6 +38,16 @@
   button.on { border-color: #4ade80; color: #4ade80; }
   .tall { height: 260vh; }              /* something for the document to scroll */
   html.locked, html.locked body { height: 100%; overflow: hidden; }
+  /* The app's way of moving the page colour, which is not this page's way.
+     probe.html has always written `root.style.background = hex` — one inline
+     property, a literal colour. The app never does that: `--screen` resolves
+     through `--bg`, `--bg` is redeclared per theme, and the theme changes by
+     setting an attribute on <html>. Same computed colour, a completely
+     different route to it, and nothing here could tell the two apart. */
+  html { --pg: #101410; }
+  html[data-cycle="1"] { --pg: #f6f1e3; }
+  html[data-cycle="2"] { --pg: #171321; }
+  html.varpage { background: var(--pg); }
   /* the app's faded edges: one fixed layer over the whole viewport. If
      Safari is sampling pixels rather than reading the meta, this is the
      thing standing in front of what it would sample. */
@@ -111,7 +121,10 @@ window.TC = { colours: ['#101410', '#f6f1e3', '#171321'], at: 0,
                  Safari followed" reading never said which of the two it had
                  followed. Default on, because that is the app's own shape —
                  turn it off to vary the meta alone. */
-              chan: true, paned: false };
+              chan: true, paned: false,
+              /* 'inline' writes root.style.background, 'var' goes through a
+                 custom property and an attribute the way the app does */
+              pageby: 'inline' };
 /* `manifest` was a boolean while the only manifest on offer declared a red
    theme_color. The app's manifest declares none, so "is a manifest linked"
    and "does it name a colour" are two questions, and only the second one had
@@ -126,7 +139,13 @@ window.MANIFESTS = { bare: 'probe-bare.webmanifest',      // no colour keys
                      red: 'probe.webmanifest' };          // theme_color, loud
 (function () {
   const hex = TC.colours[TC.at];
-  document.documentElement.style.background = TC.chan === false ? TC.colours[0] : hex;
+  const page = TC.chan === false ? TC.colours[0] : hex;
+  if (TC.pageby === 'var') {
+    document.documentElement.classList.add('varpage');
+    document.documentElement.dataset.cycle = TC.chan === false ? '0' : String(TC.at);
+  } else {
+    document.documentElement.style.background = page;
+  }
   const meta = document.querySelector('meta[name="theme-color"]');
   if (TC.how === 'non') meta.remove(); else meta.content = hex;
   if (TC.locked) document.documentElement.classList.add('locked');
@@ -195,6 +214,7 @@ bars at the top and the foot of the screen. Each test says what it means.</p>
   <button id="t1">test 1 — only the tag moves</button>
   <button id="t2">test 2 — only the page moves</button>
   <button id="t3">test 3 — both, the app's shape</button>
+  <button id="t4">test 4 — only the page, moved the app's way</button>
 </div>
 <p id="guide" style="color:#9be9a8; margin-top:.6rem"></p>
 <p style="color:#3d5c46; margin-top:1rem">Or set the conditions by hand:</p>
@@ -250,7 +270,7 @@ bars at the top and the foot of the screen. Each test says what it means.</p>
  * until the next CACHE bump. If the stamp below doesn't match the
  * release, this page is stale too and the rest of it may be lying.
  */
-const PROBE_BUILD = 'v74';
+const PROBE_BUILD = 'v75';
 
 async function serverRelease() {
   /* no-store gets past the HTTP cache. It does *not* get past the service
@@ -580,7 +600,16 @@ function paint(hex) {
   // in the cycle, so the meta is the only thing moving and a following bar
   // can only have followed the meta
   const page = TC.chan ? hex : TC.colours[0];
-  root.style.background = page;
+  if (TC.pageby === 'var') {
+    // the app's route: no inline colour anywhere, an attribute and a var chain
+    root.style.removeProperty('background');
+    root.classList.add('varpage');
+    root.dataset.cycle = TC.chan ? String(TC.at) : '0';
+  } else {
+    root.classList.remove('varpage');
+    delete root.dataset.cycle;
+    root.style.background = page;
+  }
   // the veil carries the colour too, the way the app's edges fade to --bg
   document.querySelector('.veil').style.background =
     `linear-gradient(${page} 0, transparent 12%, transparent 88%, ${page} 100%)`;
@@ -628,6 +657,9 @@ function drawTc() {
     `<tr><td>announced by</td><td><b>${HOW[TC.how]}</b></td></tr>` +
     `<tr><td>page colour moves</td><td><b>${
       TC.chan ? 'yes (like the app)' : 'no — meta alone'}</b></td></tr>` +
+    `<tr><td>moved by</td><td><b>${
+      TC.pageby === 'var' ? 'a CSS variable + attribute (like the app)'
+                          : 'a direct inline style'}</b></td></tr>` +
     `<tr><td>document scrolls</td><td><b>${TC.locked ? 'no (like the app)' : 'yes'}</b></td></tr>` +
     `<tr><td>fixed layer over it</td><td><b>${TC.veiled ? 'yes (like the app)' : 'no'}</b></td></tr>` +
     `<tr><td>opaque layer over it</td><td><b>${
@@ -679,15 +711,22 @@ for (const [id, which] of [['manbare', 'bare'], ['man', 'plain'], ['manred', 're
  */
 const TESTS = {
   t1: { how: 'rep', chan: false, paned: false, locked: true, veiled: false,
-        manifest: 'plain',
+        manifest: 'plain', pageby: 'inline',
         say: 'Test 1: the page stays one colour and only the theme-color tag ' +
              'moves. If the bars change, Safari is reading the tag.' },
   t2: { how: 'non', chan: true, paned: false, locked: true, veiled: false,
-        manifest: 'plain',
+        manifest: 'plain', pageby: 'inline',
         say: 'Test 2: there is no theme-color tag at all, and only the page ' +
              'colour moves. If the bars change, Safari is reading the page.' },
+  t4: { how: 'non', chan: true, paned: false, locked: true, veiled: false,
+        manifest: 'plain', pageby: 'var',
+        say: 'Test 4: the same as test 2 — no tag, only the page colour ' +
+             'moving — except the colour moves the way the app moves it, ' +
+             'through a CSS variable and an attribute rather than a direct ' +
+             'style. If test 2 changed the bars and this one does not, that ' +
+             'difference is the bug.' },
   t3: { how: 'rep', chan: true, paned: true, locked: true, veiled: false,
-        manifest: 'plain',
+        manifest: 'plain', pageby: 'inline',
         say: 'Test 3: both move, with every condition the app has \u2014 a locked ' +
              "page, an opaque layer over it, the app's manifest. This is the " +
              'control, and the bars should change here.' },
@@ -696,7 +735,8 @@ function drawGuide() {
   const hit = Object.keys(TESTS).find(k => {
     const t = TESTS[k];
     return t.how === TC.how && t.chan === TC.chan && t.paned === TC.paned &&
-           t.locked === TC.locked && t.manifest === TC.manifest;
+           t.locked === TC.locked && t.manifest === TC.manifest &&
+           t.pageby === TC.pageby;
   });
   for (const k of Object.keys(TESTS))
     document.getElementById(k).classList.toggle('on', k === hit);
