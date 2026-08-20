@@ -443,6 +443,33 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
     records anyone watching that happen. Worth asking outright before spending
     another release restoring it.
 
+  **MEASURED ON THE DEVICE, and it overturns this whole entry. Read this
+  before anything else here.** Three readings from `probe.html`, all under the
+  app's own conditions (the app's manifest linked, document locked):
+
+  | test | what moved | Safari's bars |
+  |---|---|---|
+  | 1 | only the `theme-color` tag | **did not follow** |
+  | 2 | only the page's background colour, no tag at all | **followed** |
+  | 3 | both, plus an opaque fixed layer over the background | **followed** |
+
+  So on this phone, with a manifest linked:
+
+  - **`theme-color` does nothing at all.** Not "is read once at parse", not
+    "needs a replace rather than a rewrite" — nothing. Test 1 replaced the
+    element on every cycle and the bars never moved. Every release from v52 on
+    that reasoned about which *mutation* the tag wants was reasoning about a
+    lever that is not connected.
+  - **The document's background colour is the channel, and it is live.**
+  - **An opaque fixed layer over it does not block it** (test 3 followed the
+    cycling background, not the constant violet pane). So Safari reads the
+    document's background *colour*, not sampled pixels, and `.base` standing
+    over `html` costs nothing.
+
+  Which means `floodChrome()`'s `--screen` write — v70 — is the right
+  mechanism after all, and `setThemeColor()` is decorative on iOS and load
+  bearing only for engines that honour the tag. Keep it; do not reason from it.
+
   **Cleared on the device, under the app's own conditions:** replacing the
   element, the app's manifest, a locked document and an opaque fixed layer over
   the background. The probe was set to all four at once and Safari's bars
@@ -516,6 +543,19 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
   it on a phone with `probe.html`, whose experiment varies each candidate
   independently and links a manifest whose `theme_color` is a red that appears
   nowhere else, so the source being listened to is never in doubt.
+  **`/version` reports the channel now, in the app, on the device**, because
+  the theory above says the bars follow `page` and the app moves `page` on
+  every theme switch — so if the bars still do not follow in the app, the app
+  is not doing on the phone what it does here. The last line reads
+  `theme <name> page #rrggbb tag #rrggbb`, and **`PINNED`** if `--screen` is
+  still set as an inline property on the root at rest. That last flag is the
+  failure worth catching: inline beats every stylesheet rule and `dryChrome()`
+  is the only thing that removes it, so a `--screen` left behind freezes the
+  document's background colour on a literal hex — a theme switch then moves
+  the tag, moves `.base`, and cannot move the one channel the chrome reads.
+  Assert it appears during a flood and is gone after, and that none of it
+  reaches `getText()`.
+
 - **`/version`** (`modes.js`, `setRelease()`/`askRelease()` in `app.js`). Rides
   the mode machinery, which is the whole reason it is a mode: dimmed, uncounted,
   dropped from the export, all for free. It **overrides every other mode in

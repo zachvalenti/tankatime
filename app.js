@@ -578,7 +578,33 @@ function geometry() {
     `${innerHeight < document.documentElement.clientHeight ? ' (keyboard)' : ''}\n` +
     `sa-top ${inset('top')} sa-bot ${inset('bottom')}` +
     ` ${navigator.standalone ? 'standalone' : 'browser'}` +
-    `${matchMedia('(display-mode: standalone)').matches ? '+dm' : ''}`;
+    `${matchMedia('(display-mode: standalone)').matches ? '+dm' : ''}\n` +
+    /* The colour channel, on the device, in the app.
+     *
+     * Measured on-device with probe.html: this phone's Safari does not read
+     * the theme-color tag at all while a manifest is linked — it reads the
+     * document's own background colour, and it reads it live. So the line
+     * that matters for the chrome is `page`, and `tag` is here only to show
+     * that the two agree.
+     *
+     * PINNED is the failure this exists to catch. --screen is written as an
+     * inline property on the root while the water is up, inline beats every
+     * stylesheet rule, and dryChrome() is the only thing that takes it off
+     * again. If it is ever still there at rest, the document's background
+     * colour is frozen on a literal hex — and a theme switch then moves the
+     * tag, moves .base, and cannot move the one channel the chrome reads. */
+    `theme ${document.documentElement.dataset.theme || 'room'}` +
+    ` page ${hex(getComputedStyle(document.documentElement).backgroundColor)}` +
+    ` tag ${document.querySelector('meta[name="theme-color"]')?.content || '(none)'}` +
+    `${document.documentElement.style.getPropertyValue('--screen') ? ' PINNED' : ''}`;
+}
+
+// rgb(10, 12, 10) -> #0a0c0a, so the readout can be compared with the meta
+// and with THEMES by eye on a phone
+function hex(rgb) {
+  const n = String(rgb).match(/\d+/g);
+  return n ? '#' + n.slice(0, 3)
+    .map(v => (+v).toString(16).padStart(2, '0')).join('') : String(rgb);
 }
 
 /* Two questions, because on a cache-first app they have different
