@@ -496,30 +496,32 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
   through every theme switch and a whole flood and fall, on Apple; exactly one
   landing the theme everywhere else.
 
-  **The ease, and what the regression history says.** The probe's readings are
-  all from a page that is not the app, and three fixes derived from them
-  (v76 root, v77 tag removal, v78 `.base`) each failed on the device. So the
-  next candidate came from the app's own history instead. At **v50** — the last
-  release the chrome is known to have followed a theme switch on the phone —
-  `body` carried `transition: background-color .25s ease`, so the document's
-  background colour *animated* across about fifteen frames. `09cb6b3` moved
-  that ease to `.base`, correctly and for a real reason (body is the channel
-  the band comes from, and easing it left the band lit a quarter-second after
-  the water drained). That is the one change to the colour the chrome reads,
-  inside the window where this broke.
+  **The ease was tried and reverted, and it caused a regression worth
+  remembering.** At v50 `body` carried `transition: background-color .25s ease`
+  and the document's colour animated; `09cb6b3` moved that ease to `.base`.
+  Restoring it for theme switches only (`html.tint`) did not move Safari's
+  bars — and in the installed app it split the screen: `html.swapping *`
+  matches `.base` and suppresses its transition, while a rule on `html` itself
+  does not match that selector, so the middle of the screen snapped and the
+  bands at both ends eased in behind it. Reported as "the top and bottom lag
+  behind the centre", and exactly right. **Any rule that eases one of
+  `html` / `body` / `.base` and not the others will show a seam**; assert all
+  three land together on every frame of a swap.
 
-  Both needs are real, so the ease is scoped to the one event that lost it:
-  `html.tint` is added by `applyTheme()`, cleared on a 400 ms timer, and torn
-  off by `startHold()` the moment water is coming — the flood and the fall
-  never see it, so the band cannot lag again. The rule sits **after**
-  `html.swapping` and carries `!important`, because equal specificity means
-  document order decides and the frame `swapping` suppresses everything on is
-  the frame this has to be alive for.
+  **Eight attempts failed, and the reload is what the device has always
+  confirmed.** The meta by rewrite and by replace; the root's background
+  through a variable and then written directly; `body`; `.base`, the opaque
+  layer over them; removing the tag; an eased colour instead of a snapped one.
+  Every one verified moving the right colour here and none moved the bars
+  there. A reload never failed once. So a theme tap in a **Safari tab** saves,
+  stores the room's scroll in `sessionStorage`, and reloads — Safari reads the
+  page's colour when it parses it. Nowhere else pays: the installed app's bands
+  already follow, and every other engine tints from the meta.
 
-  **This contradicts the probe**, where a snapped inline write does move the
-  bars, and that contradiction is not resolved. Treat it as: the probe answers
-  questions about the probe, and the app's own diff against its last known-good
-  release is the better evidence about the app.
+  **Which also means the tag goes back in on every engine.** v77 removed it on
+  Apple engines on the theory that its presence blocked page sampling; it did
+  not fix the bars, and it changes what a *reload* sees — which is now the
+  mechanism being relied on.
 
   **And `.base` is the layer that was hiding all of it.** v76 wrote the root's
   own colour directly and nothing moved, which only makes sense once you notice

@@ -1734,10 +1734,6 @@ const water = (() => {
 
 function startHold() {
   if (holdTimer || !getText().trim()) return;
-  // no ease on the channel while the water is up: that is exactly the
-  // quarter-second of band lag 09cb6b3 removed
-  clearTimeout(applyTheme.untint);
-  document.documentElement.classList.remove('tint');
   clearBtn.classList.add('holding');
   water.rise();
   holdTimer = setTimeout(() => {
@@ -1891,36 +1887,25 @@ function paintBase(hex) {
   if (baseLayer) baseLayer.style.backgroundColor = hex;
 }
 
-/* On Apple's WebKit the tag is not a lever, it is a lid.
+/* Safari, and a browser tab rather than the installed app — the one place
+ * this is still broken, and the only place the reload below happens.
  *
- * Four readings from the phone, and only one combination moved the bars:
- *
- *   tag present and moving, page still            no
- *   tag ABSENT, page moved by a direct style      YES
- *   tag absent, page moved through var()          no
- *   tag present, page moved by a direct style     no   <- what v76 shipped
- *
- * The one that worked is the one with no theme-color element in the document
- * at all. With a tag present Safari uses it, reads it once at parse, and stops
- * looking at the page — so the tag does not merely fail to update the bars, it
- * prevents the thing that would. Every release from v52 to v76 kept writing
- * that tag more carefully, and each one was screwing the lid on tighter.
- *
- * Removing it costs nothing here, and that is not a guess: the first reading
- * is a direct measurement that the tag does nothing on this engine. Other
- * engines do read it and do not sample the page, so they keep it.
- *
- * navigator.vendor is 'Apple Computer, Inc.' on Safari and on nothing else
- * that matters — Chrome and Firefox report their own or an empty string. A
- * false positive costs a browser its chrome tint; a false negative costs
- * Safari the whole feature, which is the bug being fixed.
+ * navigator.vendor is 'Apple Computer, Inc.' on Safari and nothing else that
+ * matters; Chrome and Firefox report their own or an empty string. The
+ * standalone check is navigator.standalone first, since the display-mode
+ * query has answered "no" from inside an installed app before.
  */
 const APPLE = /Apple/.test(navigator.vendor || '');
+const IN_APP = !!navigator.standalone ||
+  matchMedia('(display-mode: standalone)').matches;
 
+/* v77 removed this tag on Apple engines, on the theory that its presence was
+ * what stopped Safari sampling the page. It did not fix the bars, and it does
+ * change what a *reload* sees — which is now the mechanism being relied on. So
+ * the tag is written on every engine again, exactly as v76 wrote it, and a
+ * reload lands the colour the way it always has. */
 function setThemeColor(hex, fresh) {
   const meta = document.querySelector('meta[name="theme-color"]');
-  // the lid comes off and stays off; paintScreen() is the channel here
-  if (APPLE) { if (meta) meta.remove(); return; }
   if (meta && !fresh) { meta.setAttribute('content', hex); return; }
   const made = document.createElement('meta');
   made.setAttribute('name', 'theme-color');
@@ -1935,11 +1920,6 @@ function applyTheme(name) {
   else root.dataset.theme = name;
   // the writes the chrome reads — the attribute above moves every colour on
   // the page and, on iOS, tells the browser nothing at all
-  // ease the document's colour across this one event, the way v50 did — see
-  // the html.tint rule. Cleared on a timer, and by startHold() if water comes.
-  root.classList.add('tint');
-  clearTimeout(applyTheme.untint);
-  applyTheme.untint = setTimeout(() => root.classList.remove('tint'), 400);
   paintScreen(THEMES[name]);
   paintBase(THEMES[name]);
   // a replace, not a rewrite: this is the event Safari was ignoring
@@ -1953,10 +1933,40 @@ function applyTheme(name) {
   }));
 }
 
+/* A theme tap in a Safari tab reloads the page, and it is worth saying plainly
+ * why a writing app does something that blunt.
+ *
+ * Safari's own bars will not follow this app's colour while the page is live.
+ * Eight releases went into finding a write it would notice — the meta by
+ * rewrite and by replace, the root's background through a variable and then
+ * directly, body, the opaque layer over them, an eased colour instead of a
+ * snapped one. Every one of them was verified moving the right colour and none
+ * of them moved the bars. A reload always has, every single time, because
+ * Safari reads the page's colour when it parses it.
+ *
+ * So this is not a workaround for a bug still being looked for; it is the only
+ * path the device has ever confirmed. It costs a flash on a deliberate,
+ * occasional tap and nothing else: the draft is already in localStorage — the
+ * service worker's own update path below reloads on exactly these terms — the
+ * theme is saved by applyTheme() just above, and the scroll position is carried
+ * across so a long poem comes back where it was.
+ *
+ * Nowhere else. The installed app's bands already follow a theme switch, and
+ * every other engine tints from the meta, which works. A tab in Safari is the
+ * only case, so it is the only case that pays.
+ */
+const SCROLL_KEY = 'tt-scroll';
+
 themeBtn.addEventListener('click', () => {
   const names = Object.keys(THEMES);
   const cur = names.indexOf(document.documentElement.dataset.theme || 'room');
   applyTheme(names[(cur + 1) % names.length]);
+  if (!APPLE || IN_APP) return;
+  save();
+  const room = document.getElementById('room');
+  try { sessionStorage.setItem(SCROLL_KEY, String(room ? room.scrollTop : 0)); }
+  catch (_) {}
+  location.reload();
 });
 
 // the context card is a native <dialog>; showModal() gives focus
@@ -2080,6 +2090,18 @@ document.fonts?.ready.then(refresh);
 // paint and recount once it lands. Until then — or without it entirely
 // (file://, a first visit while offline) — the heuristic in count.js
 // carries the count alone
+/* and land back where the writing was, after the reload above. sessionStorage
+   rather than localStorage: this belongs to the tab and to this one trip, and
+   it is cleared as it is read so an ordinary visit never inherits it. */
+try {
+  const y = sessionStorage.getItem(SCROLL_KEY);
+  if (y !== null) {
+    sessionStorage.removeItem(SCROLL_KEY);
+    const room = document.getElementById('room');
+    if (room) room.scrollTop = Number(y) || 0;
+  }
+} catch (_) {}
+
 fetch('syllables.json')
   .then(r => (r.ok ? r.json() : Promise.reject(new Error(r.status))))
   .then(data => { loadSyllableDict(data); refresh(); })
