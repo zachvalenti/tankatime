@@ -1957,16 +1957,39 @@ function applyTheme(name) {
  */
 const SCROLL_KEY = 'tt-scroll';
 
+/* One reload, after the tapping stops — never one per tap.
+ *
+ * The first version reloaded on every tap, and cycling quickly through the
+ * themes then started a new load before the last had painted: the bars sample
+ * a page that is mid-navigation and wear its blank black, then the next tap
+ * interrupts that one too. It looks like the app hanging, and it catches up
+ * only when the tapping stops long enough for one load to finish. Reported
+ * exactly that way, and caused by this.
+ *
+ * The theme itself never waited on the reload and still doesn't — applyTheme()
+ * has already run, so the palette turns over instantly however fast the button
+ * is pressed. Only the reload is deferred, and each tap pushes it back, so a
+ * run of taps costs exactly one load and it lands on the theme the run ended
+ * on. Slower than the old path by the length of the pause, which is the point:
+ * a reload that begins before you have finished choosing is a reload aimed at
+ * the wrong colour.
+ */
+const RELOAD_WAIT = 600;
+let themeReload = 0;
+
 themeBtn.addEventListener('click', () => {
   const names = Object.keys(THEMES);
   const cur = names.indexOf(document.documentElement.dataset.theme || 'room');
   applyTheme(names[(cur + 1) % names.length]);
   if (!APPLE || IN_APP) return;
-  save();
-  const room = document.getElementById('room');
-  try { sessionStorage.setItem(SCROLL_KEY, String(room ? room.scrollTop : 0)); }
-  catch (_) {}
-  location.reload();
+  clearTimeout(themeReload);
+  themeReload = setTimeout(() => {
+    save();
+    const room = document.getElementById('room');
+    try { sessionStorage.setItem(SCROLL_KEY, String(room ? room.scrollTop : 0)); }
+    catch (_) {}
+    location.reload();
+  }, RELOAD_WAIT);
 });
 
 // the context card is a native <dialog>; showModal() gives focus

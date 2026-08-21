@@ -518,6 +518,16 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
   page's colour when it parses it. Nowhere else pays: the installed app's bands
   already follow, and every other engine tints from the meta.
 
+  **The reload is debounced, and one per tap was a bug.** Reloading on every
+  press meant cycling quickly started a new load before the last had painted:
+  the bars sample a page mid-navigation and wear its blank black, and the next
+  tap interrupts that load too. It reads as the app hanging and catches up only
+  when the pressing stops. `applyTheme()` still runs on every tap so the
+  palette turns over instantly; only the reload waits, 600 ms from the *last*
+  tap, so a run of presses costs one load and lands on the theme the run ended
+  on. Assert both halves: the palette moves on every tap with no navigation
+  while tapping, and exactly one navigation after.
+
   **Which also means the tag goes back in on every engine.** v77 removed it on
   Apple engines on the theory that its presence blocked page sampling; it did
   not fix the bars, and it changes what a *reload* sees — which is now the
