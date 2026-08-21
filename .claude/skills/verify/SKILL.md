@@ -518,15 +518,26 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
   page's colour when it parses it. Nowhere else pays: the installed app's bands
   already follow, and every other engine tints from the meta.
 
-  **The reload is debounced, and one per tap was a bug.** Reloading on every
-  press meant cycling quickly started a new load before the last had painted:
-  the bars sample a page mid-navigation and wear its blank black, and the next
-  tap interrupts that load too. It reads as the app hanging and catches up only
-  when the pressing stops. `applyTheme()` still runs on every tap so the
-  palette turns over instantly; only the reload waits, 600 ms from the *last*
-  tap, so a run of presses costs one load and lands on the theme the run ended
-  on. Assert both halves: the palette moves on every tap with no navigation
-  while tapping, and exactly one navigation after.
+  **The reload goes at once and exactly once — a latch, not a delay.** Two
+  wrong versions shipped here. Reloading on every tap meant cycling quickly
+  started a new load before the last had painted, so the bars sampled a page
+  mid-navigation and wore its blank black until the pressing stopped.
+  Deferring it 600 ms fixed that and made a *single* tap feel broken instead:
+  the palette turns over, the bars sit wrong for half a second, then the page
+  throws itself away. Waiting is the worst of both. It fires immediately now,
+  behind a `reloading` latch so a second tap cannot interrupt the first one's
+  load; taps during that load still run `applyTheme()` and still write the
+  theme to `localStorage`, so the incoming page reads the one the run ended on.
+
+  **And the flash on every load was never about the reload.** `app.js` is a
+  classic script at the foot of the body, so until it ran the page painted the
+  default room palette and then swapped — a dark flash in front of every cream
+  or dusk load, on every visit since the themes existed. Four lines in `<head>`
+  put `data-theme` on the root before the first paint. The storage key is
+  spelled out there rather than shared, because it has to run before any script
+  file loads; if `THEME_KEY` changes, change it in `index.html` too. Assert the
+  attribute is present at `domcontentloaded` and that no sample before the
+  editor exists is the room colour.
 
   **Which also means the tag goes back in on every engine.** v77 removed it on
   Apple engines on the theory that its presence blocked page sampling; it did

@@ -1957,39 +1957,34 @@ function applyTheme(name) {
  */
 const SCROLL_KEY = 'tt-scroll';
 
-/* One reload, after the tapping stops — never one per tap.
+/* The reload goes at once, and exactly once.
  *
- * The first version reloaded on every tap, and cycling quickly through the
- * themes then started a new load before the last had painted: the bars sample
- * a page that is mid-navigation and wear its blank black, then the next tap
- * interrupts that one too. It looks like the app hanging, and it catches up
- * only when the tapping stops long enough for one load to finish. Reported
- * exactly that way, and caused by this.
+ * Two wrong versions, both shipped and both reported. Reloading on every tap
+ * meant cycling quickly started a new load before the last had painted, so the
+ * bars sampled a page mid-navigation and wore its blank black until the
+ * pressing stopped. Deferring it 600ms fixed that and made a single tap feel
+ * broken instead: the palette turns over, the bars sit wrong for half a second,
+ * and then the page throws itself away. Waiting is the worst of both.
  *
- * The theme itself never waited on the reload and still doesn't — applyTheme()
- * has already run, so the palette turns over instantly however fast the button
- * is pressed. Only the reload is deferred, and each tap pushes it back, so a
- * run of taps costs exactly one load and it lands on the theme the run ended
- * on. Slower than the old path by the length of the pause, which is the point:
- * a reload that begins before you have finished choosing is a reload aimed at
- * the wrong colour.
+ * So it goes immediately, like the version that worked, with a latch so a
+ * second tap cannot interrupt the load the first one started. Taps during that
+ * load are not lost — applyTheme() still runs and still writes the theme to
+ * localStorage, and the page coming in reads it there, so a run of presses
+ * lands on the one it ended on with a single navigation.
  */
-const RELOAD_WAIT = 600;
-let themeReload = 0;
+let reloading = false;
 
 themeBtn.addEventListener('click', () => {
   const names = Object.keys(THEMES);
   const cur = names.indexOf(document.documentElement.dataset.theme || 'room');
   applyTheme(names[(cur + 1) % names.length]);
-  if (!APPLE || IN_APP) return;
-  clearTimeout(themeReload);
-  themeReload = setTimeout(() => {
-    save();
-    const room = document.getElementById('room');
-    try { sessionStorage.setItem(SCROLL_KEY, String(room ? room.scrollTop : 0)); }
-    catch (_) {}
-    location.reload();
-  }, RELOAD_WAIT);
+  if (!APPLE || IN_APP || reloading) return;
+  reloading = true;
+  save();
+  const room = document.getElementById('room');
+  try { sessionStorage.setItem(SCROLL_KEY, String(room ? room.scrollTop : 0)); }
+  catch (_) {}
+  location.reload();
 });
 
 // the context card is a native <dialog>; showModal() gives focus

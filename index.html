@@ -44,6 +44,21 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Tanka">
 <link rel="stylesheet" href="style.css">
+<!-- The theme, before the first paint.
+     app.js is a classic script at the foot of the body, so until it runs the
+     page paints the default room palette and then swaps — a dark flash in
+     front of every cream or dusk load, on every visit and not only the ones
+     the theme button causes. Setting the attribute here costs four lines and
+     removes it.
+     The key is spelled out rather than shared: this has to run before any
+     script file loads, so it cannot read THEME_KEY from app.js. If that
+     constant ever changes, change it here too. -->
+<script>
+  try {
+    var t = localStorage.getItem('tanka-time-theme');
+    if (t && t !== 'room') document.documentElement.dataset.theme = t;
+  } catch (e) {}
+</script>
 </head>
 <body>
 <!-- The room scrolls; the document does not. That is the whole reason
