@@ -20,8 +20,8 @@
  *             a line of dialogue would be a number about nothing. The
  *             total falls to words, or the clock.
  *   /import   the export button becomes an import button, and the room
- *             takes a .txt, .md or .fountain file in place of what is
- *             on the page. An instrument rather than a room, like
+ *             takes a .txt, .md, .fountain or .highland file in place
+ *             of what is on the page. An instrument rather than a room, like
  *             /version below: it says what the one button on the bar
  *             does next, and the file that arrives decides the room —
  *             a screenplay comes in under a /fountain line of its own,

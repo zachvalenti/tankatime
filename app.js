@@ -966,7 +966,7 @@ function labelFile() {
   // outside a script the export's file depends on whether any marks were
   // used, which changes as you type — so the title names both rather
   // than chase it
-  exportBtn.title = importing ? 'Import a .txt, .md or .fountain file'
+  exportBtn.title = importing ? 'Import a .txt, .md, .fountain or .highland file'
     : fountain ? 'Export as .fountain' : 'Export as .md or .txt';
   exportBtn.setAttribute('aria-label', importing ? 'Import a file' : 'Export');
 }
@@ -1467,17 +1467,58 @@ function askForFile() {
       // clearing the value is what lets the same file be chosen twice:
       // an input that still holds it fires no second change event
       filePicker.value = '';
-      if (!file) return;
-      // FileReader rather than file.text(), which is the newer and
-      // shorter of the two and absent from the older phones this app is
-      // meant to keep working on
-      const reader = new FileReader();
-      reader.onload = () => takeFile(file.name, String(reader.result || ''));
-      reader.readAsText(file);
+      if (file) openFile(file);
     });
     document.body.appendChild(filePicker);
   }
   filePicker.click();
+}
+
+/* Which of the two kinds of file this is, and the only place that is
+ * decided.
+ *
+ * Read as bytes rather than as text, because one of the four things
+ * this takes is not text at all: a .highland is a zip archive with the
+ * screenplay inside it (see highland.js). Everything else is decoded
+ * here and read as what it looks like — FileReader rather than
+ * file.text(), which is the shorter of the two and absent from the
+ * older phones this app is meant to keep working on.
+ *
+ * The name decides the room, and only the name. A .fountain or a
+ * .highland comes in under a /fountain line written for it — the room
+ * has to be a screenplay before the page can be read as one — and the
+ * mode word that asked for the import is spent doing it, so the button
+ * says export again the moment the file lands. A .txt or .md file needs
+ * no line at all: the room it wants is the room this already is, and
+ * the /import line simply goes with the page it was standing on.
+ *
+ * Sniffing the contents was the alternative and is worse. A screenplay
+ * saved as .txt would sometimes be recognised and sometimes not, and a
+ * poem with a line in capitals would sometimes be taken for a script;
+ * an extension is a thing the writer can see and change. The one thing
+ * the bytes are asked is whether they are an archive, which is not a
+ * matter of taste.
+ */
+function openFile(file) {
+  const highland = /\.highland$/i.test(file.name);
+  const script = highland || /\.(fountain|spmd)$/i.test(file.name);
+  // Highland's own additions to Fountain are turned back into Fountain
+  // (see highland.js); nobody else's file is rewritten on the way in
+  const read = text => takeFile(highland ? hlFountain(text) : text, script);
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    const bytes = new Uint8Array(reader.result);
+    // an archive holds its script in a file of its own, so it is opened
+    // before it is read. Anything else is the text it looks like
+    if (hlIsBundle(bytes)) {
+      hlUnbundle(bytes).then(text => { if (text !== null) read(text); })
+        .catch(() => {});
+      return;
+    }
+    read(new TextDecoder().decode(bytes));
+  };
+  reader.readAsArrayBuffer(file);
 }
 
 /* What arrives is text from somewhere else, so it is met the way the
@@ -1485,21 +1526,8 @@ function askForFile() {
  * byte-order mark some editors write dropped rather than left to sit in
  * the first line as an invisible character the counts would have to
  * explain.
- *
- * The name decides the room, and only the name. A .fountain file comes
- * in under a /fountain line written for it — the room has to be a
- * screenplay before the page can be read as one — and the mode word
- * that asked for the import is spent doing it, so the button says
- * export again the moment the file lands. A .txt or .md file needs no
- * line at all: the room it wants is the room this already is, and the
- * /import line simply goes with the page it was standing on.
- *
- * Sniffing the contents was the alternative and is worse. A screenplay
- * saved as .txt would sometimes be recognised and sometimes not, and a
- * poem with a line in capitals would sometimes be taken for a script;
- * an extension is a thing the writer can see and change.
  */
-function takeFile(name, raw) {
+function takeFile(raw, script) {
   const text = raw.replace(/^\ufeff/, '').replace(/\r\n?/g, '\n').replace(/\s+$/, '');
   // nothing in it: keep the page that is there rather than trade a
   // draft for an empty file chosen by accident
@@ -1513,7 +1541,6 @@ function takeFile(name, raw) {
   const junk = (text.match(/[\u0000\ufffd]/g) || []).length;
   if (junk > text.length / 10) return;
 
-  const script = /\.(fountain|spmd)$/i.test(name);
   const head = script ? '/fountain\n' : '';
 
   commit();                 // the page being replaced is a step behind us
