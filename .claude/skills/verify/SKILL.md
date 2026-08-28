@@ -771,6 +771,46 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
   literal, which is how to test CRLF, a BOM, and a round trip through the
   export without touching the disk.
 
+- **`.highland` is a zip, not a file** (`highland.js`). Highland saves a
+  TextBundle: a zip holding `text.md` — the Fountain the writer typed — beside
+  the app's own JSON, including an entire base64 plist of the last revision.
+  Read as text it is PK bytes and a thousand curly braces, which is why the
+  import reads **bytes** (`readAsArrayBuffer` + `TextDecoder`) and asks
+  `hlIsBundle()` before it asks anything else.
+
+  The zip reader is fifty lines and hand-rolled, because a dependency in a
+  folder of static files is a bigger cost than a central directory walk. It
+  reads from the **end** — the EOCD record hunted backwards past a comment of
+  up to 64k, then the catalogue, then each entry's own local header, whose
+  extra field is frequently a different length from the catalogue's (skip that
+  and you decode the middle of the file). Central-directory sizes are the ones
+  used, so an entry written with a data descriptor still reads.
+
+  Stored (method 0) is Highland's own path and needs no inflating; deflate
+  (method 8) goes through `DecompressionStream('deflate-raw')`. **Test both** —
+  the sample file stores everything, so a stored-only run proves nothing about
+  the branch that inflates. Build a deflated bundle in the test with
+  `zlib.deflateRawSync` and a hand-written zip, and assert it comes through
+  identically.
+
+  Anything that isn't a bundle with a `text.*` in it returns null and the page
+  is left alone: a `.zip` of photos, a `.docx`, a bundle with no script. Assert
+  that, not just the happy path.
+
+- **Highland's `%%` notes become the boneyard, and are never deleted**
+  (`hlFountain()`). A `%%` fence on its own line is Highland's note block —
+  research, links, paragraphs kept beside the script — and it means nothing to
+  any other Fountain program. It converts to `/*` and `*/`, which this app
+  already understands: struck through in the room, out of the page count, still
+  in the file and still in the export.
+
+  Deleting them would be four fewer lines and the wrong answer; the same goes
+  for `=` synopses and `#` sections, which are **already Fountain** and want no
+  conversion at all. An odd number of fences gets a closer appended rather than
+  a boneyard that swallows the rest of the script — assert that case, it is the
+  one that silently eats a page. The conversion runs for `.highland` only:
+  another program's `%%` is another program's business.
+
 - **A page cannot read the server's `sw.js` through its own worker**, and this
   cost real time. `fetch('sw.js', { cache: 'no-store' })` gets past the HTTP
   cache and **not** past the service worker: a page-initiated fetch runs through

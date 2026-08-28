@@ -51,14 +51,23 @@ A quiet room for tanka. WriteRoom inspired full-screen writing with a syllable c
   didn't — a poem with no marks in it isn't a Markdown file. `◐` cycles
   themes (green room → creme paper → dusk).
 - `/import` on the first line points that button the other way: it reads
-  `import`, and it takes a `.txt`, `.md` or `.fountain` file in place of
-  what is on the page. The file decides the room — a screenplay arrives
-  under a `/fountain` line written for it, a poem needs no line at all —
-  and either way the word that asked for the import goes with the page it
-  replaced, so the button says `export` again the moment the file lands.
-  The import is one undo step: ⌘Z gives the old page back. Like the other
-  modes it rides with them, so `/fountain /import` is a script that can
-  open one.
+  `import`, and it takes a `.txt`, `.md`, `.fountain` or `.highland` file
+  in place of what is on the page. The file decides the room — a
+  screenplay arrives under a `/fountain` line written for it, a poem needs
+  no line at all — and either way the word that asked for the import goes
+  with the page it replaced, so the button says `export` again the moment
+  the file lands. The import is one undo step: ⌘Z gives the old page back.
+  Like the other modes it rides with them, so `/fountain /import` is a
+  script that can open one.
+- A `.highland` is not a text file: it is a zip archive holding the
+  screenplay beside a heap of Highland's own JSON — character counts,
+  sidebar widths, an entire base64 copy of the last revision. The import
+  opens the archive, takes the script out of it and leaves the rest, so
+  what lands on the page is the writing and nothing else. Highland's one
+  addition to Fountain, a note fenced by `%%`, becomes Fountain's own
+  boneyard: the research is kept, struck from the script, and out of the
+  page count — the same thing said in a way every other Fountain program
+  can read.
 - `?` (bottom left) opens a short note on the tanka form and why the
   app exists.
 - `clear` wipes the page — hold it while the color rises for three
@@ -96,6 +105,8 @@ works as a plain page.)
 - `fountain.js` — the same job for Fountain, the screenplay notation.
   Unlike Markdown it can't read a line without its neighbours, so this
   one reads the whole page in a pass
+- `highland.js` — Highland's `.highland` file: a zip with a screenplay
+  inside it, and the two characters Highland spells its notes with
 - `marks.js` — what ⌘B/I/U/K/\ do to a line of text
 - `syllables.json` — generated word list: the CMU dictionary words the
   heuristic would get wrong (don't edit by hand)
