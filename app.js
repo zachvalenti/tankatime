@@ -326,6 +326,7 @@ function refresh() {
   openLine = caretLine();
   const { rows, src, modes, kinds } = readDoc();
   const flipped = setFountain(modes.fountain);
+  setImport(modes.import);
   // decorate before measuring: a heading stands taller than a line of
   // poem, so every offsetTop read below has to be the settled one
   for (let i = 0; i < rows.length; i++)
@@ -943,12 +944,37 @@ function setTotalMode(mode) {
 function setFountain(on) {
   if (on === fountain) return false;
   fountain = on;
-  // the file the export writes is a different file now. Outside a
-  // script it depends on whether any marks were used, which changes as
-  // you type — so the title names both rather than chase it.
-  exportBtn.title = on ? 'Export as .fountain' : 'Export as .md or .txt';
+  // the file the export writes is a different file now
+  labelFile();
   applyTotal();
   return true;
+}
+
+/* The one button on the bar that changes what it says.
+ *
+ * Two things move it: the grammar, which decides what an export would
+ * write, and /import, which points the whole button the other way. Both
+ * come from the first line, so they can change on the same keystroke —
+ * which is why neither writes the label itself. They set their flag and
+ * ask here, and the label is worked out from both at once rather than
+ * from whichever ran last.
+ */
+let importing = false;
+
+function labelFile() {
+  exportBtn.textContent = importing ? 'import' : 'export';
+  // outside a script the export's file depends on whether any marks were
+  // used, which changes as you type — so the title names both rather
+  // than chase it
+  exportBtn.title = importing ? 'Import a .txt, .md or .fountain file'
+    : fountain ? 'Export as .fountain' : 'Export as .md or .txt';
+  exportBtn.setAttribute('aria-label', importing ? 'Import a file' : 'Export');
+}
+
+function setImport(on) {
+  if (on === importing) return;
+  importing = on;
+  labelFile();
 }
 
 totalEl.addEventListener('click', () => {
@@ -1367,9 +1393,15 @@ fsBtn.addEventListener('click', () => {
   else (document.documentElement.requestFullscreen?.() || Promise.resolve()).catch(() => {});
 });
 
+// the bar's one file button, pointed by /import — see labelFile()
+exportBtn.addEventListener('click', () => {
+  if (importing) askForFile();
+  else exportDoc();
+});
+
 // no server to download from: build the .txt in memory as a Blob,
 // point a throwaway <a> at it, and click the link on the user's behalf
-exportBtn.addEventListener('click', () => {
+function exportDoc() {
   // whatever the first line asked for was for the room, not the file
   const all = getText().split('\n');
   const modes = readModes(all);
@@ -1399,7 +1431,108 @@ exportBtn.addEventListener('click', () => {
   a.download = `${name}-${new Date().toISOString().slice(0, 10)}.${ext}`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
-});
+}
+
+/* ---------- import ---------- */
+
+/* The export, run backwards: a file off the disk becomes the page.
+ *
+ * There is no server here either, so this is the file input every
+ * browser already has — kept out of index.html because it is not part
+ * of the room. It is made on the first import and lives hidden in the
+ * body from then on, which is one element rather than one per click and
+ * costs nothing to leave there. (A detached input is enough in most
+ * browsers and not in all of them; the export's throwaway <a> gets away
+ * with it because a download is not a permission the way a file picker
+ * is.)
+ *
+ * No `accept` on it, deliberately, and the one place that is worth
+ * arguing with. A filter of `.txt,.md,.fountain` is what this wants to
+ * say and what a desktop picker would honour — but iOS turns an accept
+ * list into file types it knows, and `.fountain` is not one: a phone
+ * would grey out the very file the mode exists to take. An unfiltered
+ * picker on every platform beats a tidy one that can't open a script,
+ * so the filtering happens after the file is read (see takeFile) rather
+ * than in a dialog that would refuse it.
+ */
+let filePicker = null;
+
+function askForFile() {
+  if (!filePicker) {
+    filePicker = document.createElement('input');
+    filePicker.type = 'file';
+    filePicker.hidden = true;
+    filePicker.addEventListener('change', () => {
+      const file = filePicker.files && filePicker.files[0];
+      // clearing the value is what lets the same file be chosen twice:
+      // an input that still holds it fires no second change event
+      filePicker.value = '';
+      if (!file) return;
+      // FileReader rather than file.text(), which is the newer and
+      // shorter of the two and absent from the older phones this app is
+      // meant to keep working on
+      const reader = new FileReader();
+      reader.onload = () => takeFile(file.name, String(reader.result || ''));
+      reader.readAsText(file);
+    });
+    document.body.appendChild(filePicker);
+  }
+  filePicker.click();
+}
+
+/* What arrives is text from somewhere else, so it is met the way the
+ * paste handler meets the clipboard: line endings normalised, and the
+ * byte-order mark some editors write dropped rather than left to sit in
+ * the first line as an invisible character the counts would have to
+ * explain.
+ *
+ * The name decides the room, and only the name. A .fountain file comes
+ * in under a /fountain line written for it — the room has to be a
+ * screenplay before the page can be read as one — and the mode word
+ * that asked for the import is spent doing it, so the button says
+ * export again the moment the file lands. A .txt or .md file needs no
+ * line at all: the room it wants is the room this already is, and the
+ * /import line simply goes with the page it was standing on.
+ *
+ * Sniffing the contents was the alternative and is worse. A screenplay
+ * saved as .txt would sometimes be recognised and sometimes not, and a
+ * poem with a line in capitals would sometimes be taken for a script;
+ * an extension is a thing the writer can see and change.
+ */
+function takeFile(name, raw) {
+  const text = raw.replace(/^\ufeff/, '').replace(/\r\n?/g, '\n').replace(/\s+$/, '');
+  // nothing in it: keep the page that is there rather than trade a
+  // draft for an empty file chosen by accident
+  if (!text.trim()) return;
+  /* The picker shows every file, so this is where a photo or a PDF is
+   * turned away — read as text, one arrives as NUL bytes and replacement
+   * characters, neither of which a writer ever typed. A tenth of the
+   * page being nonsense is nonsense; a stray U+FFFD in a file that lost
+   * an accent somewhere is not, and still opens.
+   */
+  const junk = (text.match(/[\u0000\ufffd]/g) || []).length;
+  if (junk > text.length / 10) return;
+
+  const script = /\.(fountain|spmd)$/i.test(name);
+  const head = script ? '/fountain\n' : '';
+
+  commit();                 // the page being replaced is a step behind us
+  setText(head + text);
+  refresh();
+  editor.focus();
+  // the caret goes to the top of the writing, not the top of the file:
+  // the mode line, where there is one, is scaffolding to write past
+  placeAt(head.length);
+  openCaretLine();
+  commit();                 // and the import is a step of its own to undo
+  resetRun();
+  save();
+  // placeCaret has scrolled the caret into view, which on a long script
+  // is somewhere near the top already — but the room keeps whatever
+  // scroll the old page left, so say it outright
+  const room = document.getElementById('room');
+  if (room) room.scrollTop = 0;
+}
 
 // a soft tick where the platform allows it (Android Chrome; iOS Safari
 // exposes no vibration API to web pages)

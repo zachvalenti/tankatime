@@ -736,6 +736,41 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
   drops the line. The lookup is lazy — a page without `/version` must make no
   request at all.
 
+- **`/import`** (`modes.js`, `labelFile()`/`askForFile()`/`takeFile()` in
+  `app.js`). The one mode that changes a button rather than the room: while the
+  word is on the first line, `#export` reads `import` and opens a file picker
+  instead of writing a download. It rides with every other mode (a
+  `/fountain /import` page is a script that can open one) and falls to
+  `/version` with the rest.
+
+  What the file decides is the room it lands in. A `.fountain` (or `.spmd`)
+  name gets a `/fountain` line written above the text; anything else lands as
+  itself, mode line and all gone with the page it replaced — so the button
+  reverts to `export` as a *consequence* of the import, not as a step of its
+  own. Assert both halves: the first line after a script import is exactly
+  `/fountain`, the total reads pages, no cover page is seeded over the file
+  (`seedScript()` bails on a page with writing under the mode line), and after
+  a `.md` import nothing of `/import` survives.
+
+  **The picker deliberately sets no `accept`.** A `.txt,.md,.fountain` filter is
+  what this wants to say, and iOS turns an accept list into file types it knows
+  — `.fountain` is not one, so a phone would grey out the file the mode exists
+  to open. The filtering is done after the read instead: an empty file leaves
+  the page alone, and anything more than a tenth NUL/U+FFFD is a photo or a PDF
+  and is refused. Keep a binary case in any run of this; it is the only thing
+  standing between a mis-tap and a page of mojibake.
+
+  The whole import is **one undo step** — `commit()` before the swap and after
+  it — so ⌘Z gives back the page that was replaced, `/import` line included.
+  Assert that, and the redo: it is the only safety net a writer has here, and
+  unlike `clear` there is no three-second hold in front of it.
+
+  Drive it with Playwright's `filechooser` event
+  (`page.waitForEvent('filechooser')` alongside the click, then
+  `fc.setFiles(...)`) — `setFiles` also takes a `{ name, mimeType, buffer }`
+  literal, which is how to test CRLF, a BOM, and a round trip through the
+  export without touching the disk.
+
 - **A page cannot read the server's `sw.js` through its own worker**, and this
   cost real time. `fetch('sw.js', { cache: 'no-store' })` gets past the HTTP
   cache and **not** past the service worker: a page-initiated fetch runs through

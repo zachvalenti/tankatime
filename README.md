@@ -50,6 +50,15 @@ A quiet room for tanka. WriteRoom inspired full-screen writing with a syllable c
 - `export` saves the page: Markdown if you used any, plain text if you
   didn't — a poem with no marks in it isn't a Markdown file. `◐` cycles
   themes (green room → creme paper → dusk).
+- `/import` on the first line points that button the other way: it reads
+  `import`, and it takes a `.txt`, `.md` or `.fountain` file in place of
+  what is on the page. The file decides the room — a screenplay arrives
+  under a `/fountain` line written for it, a poem needs no line at all —
+  and either way the word that asked for the import goes with the page it
+  replaced, so the button says `export` again the moment the file lands.
+  The import is one undo step: ⌘Z gives the old page back. Like the other
+  modes it rides with them, so `/fountain /import` is a script that can
+  open one.
 - `?` (bottom left) opens a short note on the tanka form and why the
   app exists.
 - `clear` wipes the page — hold it while the color rises for three
@@ -77,8 +86,8 @@ works as a plain page.)
 ## Files
 
 - `index.html`, `style.css` — the page and its themes
-- `app.js` — the editor: decoration, the margin, undo, autosave, export,
-  the clear-hold flood. The only file with a DOM in it
+- `app.js` — the editor: decoration, the margin, undo, autosave, export
+  and import, the clear-hold flood. The only file with a DOM in it
 - `count.js` — syllable counting: hand overrides → dictionary → heuristic
 - `simple.js` — the thousand plain words, and how generously to match them
 - `modes.js` — what the first line of the page can ask for

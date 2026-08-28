@@ -19,6 +19,13 @@
  *             of Markdown, and no syllables at all — a count of beats in
  *             a line of dialogue would be a number about nothing. The
  *             total falls to words, or the clock.
+ *   /import   the export button becomes an import button, and the room
+ *             takes a .txt, .md or .fountain file in place of what is
+ *             on the page. An instrument rather than a room, like
+ *             /version below: it says what the one button on the bar
+ *             does next, and the file that arrives decides the room —
+ *             a screenplay comes in under a /fountain line of its own,
+ *             which is also what spends the word that asked for it.
  *   /version  which release this app is actually running, printed on the
  *             line itself. It answers the one question a cache-first
  *             offline app makes hard to ask: an installed copy serves
@@ -39,7 +46,7 @@
  * the top of the page and reports what it was asked for.
  */
 
-const MODE_WORDS = ['free', 'simple', 'fountain', 'haiku', 'version'];
+const MODE_WORDS = ['free', 'simple', 'fountain', 'haiku', 'import', 'version'];
 const MODE_WORD = new RegExp('^/(' + MODE_WORDS.join('|') + ')$');
 
 // the mode words on a line, or null if the line is a line of writing —
@@ -56,7 +63,7 @@ function modeWords(text) {
   return out;
 }
 
-// → { free, simple, fountain, haiku, version, lines }, lines being how
+// → { free, simple, fountain, haiku, import, version, lines }, lines being how
 // many the modes occupy at the top, which is also how many the export drops
 function readModes(src) {
   const on = new Set();
@@ -83,11 +90,19 @@ function readModes(src) {
    * so the same treatment applies: the others come back *off* rather
    * than merely inert, and a caller never has to know the order.
    */
+  /* /import is the one instrument that combines with everything. It
+   * asks nothing of the room — no counting changes, no grammar changes
+   * — only that the button on the bar reads the other way for as long
+   * as the word is there. So it rides alongside /free, /simple, /haiku
+   * and /fountain untouched, and falls to /version with the rest of
+   * them, a page being asked what it is having no room to import into.
+   */
   const version = on.has('version');
   const fountain = !version && on.has('fountain');
   return { free: !version && on.has('free'),
            simple: !version && on.has('simple'),
            fountain, haiku: !version && on.has('haiku') && !fountain,
+           import: !version && on.has('import'),
            version, lines: n };
 }
 
