@@ -425,6 +425,15 @@ html.swapping, html.swapping * { transition: none !important; }
   white-space: pre-wrap;
 }
 
+/* the /secret_readme note: same pseudo-element trick as the readout
+   above, same reasons — the page says it, the page does not contain it */
+.editor > .md-mode[data-secret]::after {
+  content: attr(data-secret);
+  color: var(--dim);
+  pointer-events: none;
+  white-space: pre-wrap;
+}
+
 .editor > .ftn-lyric    { font-style: italic; }
 .editor > .ftn-synopsis { color: var(--dim); font-style: italic; }
 

@@ -334,6 +334,7 @@ function refresh() {
   measure(rows, src, modes, kinds);
   setGhost(rows, src, modes, kinds);
   setRelease(rows, src, modes);
+  setSecret(rows, src, modes);
 
   // Both of these rewrite the document, so they go last and each starts
   // a fresh refresh() of its own rather than trying to patch this one.
@@ -524,6 +525,53 @@ function setRelease(rows, src, modes) {
   if (i < 0 || !rows[i]) return;
   releaseLine = rows[i];
   releaseLine.setAttribute('data-release', release + geometry());
+}
+
+/* The /secret_readme note — see modes.js for what it is for.
+ *
+ * The repository's readme is a blank page, deliberately: this site is a
+ * business card that turns out to be a word processor, and a readme that
+ * explained that up front would spend the only surprise it has. So the
+ * note lives here instead, behind a word you have to be typing already
+ * to find.
+ *
+ * Painted the same way as the /version readout above, and for its
+ * reasons rather than merely to match it. A ::after has no child node,
+ * so getText() can't see it: the note cannot land in the draft, cannot
+ * be exported as though you wrote it, cannot be half-deleted by a
+ * backspace at the end of the line, and the caret cannot get inside it.
+ * It is a thing the page says, not a thing the page contains — which is
+ * exactly what a message hidden in a word processor has to be, or the
+ * first person to find it also finds it stuck to their poem.
+ */
+const SECRET_README = [
+  '# \u{1F412} \u{1F440}',
+  'I always loved a cool website.',
+  'But was too impatient to learn much.',
+  'I spent more time living in immersive audio / visual storytelling ' +
+    'than I am proud to admit.',
+  'Wireheaded? Perhaps.',
+  'But all of Meat is getting Fiber Optic! Innamet of Da Futah!',
+].join('\n');
+
+let secretLine = null;
+
+function clearSecret() {
+  if (secretLine) secretLine.removeAttribute('data-secret');
+  secretLine = null;
+}
+
+function setSecret(rows, src, modes) {
+  clearSecret();
+  if (!modes.secretReadme) return;
+  // on the line that asked, which need not be the first — mode words may
+  // be spread over as many leading lines as the writer likes
+  let i = -1;
+  for (let n = 0; n < modes.lines && n < src.length; n++)
+    if (/\/secret_readme\b/i.test(src[n])) { i = n; break; }
+  if (i < 0 || !rows[i]) return;
+  secretLine = rows[i];
+  secretLine.setAttribute('data-secret', '\n' + SECRET_README);
 }
 
 /* What a safe-area inset actually resolves to, in CSS px.

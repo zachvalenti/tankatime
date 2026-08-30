@@ -26,6 +26,14 @@
  *             does next, and the file that arrives decides the room —
  *             a screenplay comes in under a /fountain line of its own,
  *             which is also what spends the word that asked for it.
+ *   /secret_readme
+ *             the readme this project doesn't keep. The repository's own
+ *             is a blank page on purpose — everything about this site is
+ *             meant to be found in it rather than read about beforehand —
+ *             so the note that would have been boilerplate lives here,
+ *             behind a word you have to already be typing to find. An
+ *             instrument like /version below, and read the same way:
+ *             once, then cleared.
  *   /version  which release this app is actually running, printed on the
  *             line itself. It answers the one question a cache-first
  *             offline app makes hard to ask: an installed copy serves
@@ -46,7 +54,7 @@
  * the top of the page and reports what it was asked for.
  */
 
-const MODE_WORDS = ['free', 'simple', 'fountain', 'haiku', 'import', 'version'];
+const MODE_WORDS = ['free', 'simple', 'fountain', 'haiku', 'import', 'version', 'secret_readme'];
 const MODE_WORD = new RegExp('^/(' + MODE_WORDS.join('|') + ')$');
 
 // the mode words on a line, or null if the line is a line of writing —
@@ -63,7 +71,7 @@ function modeWords(text) {
   return out;
 }
 
-// → { free, simple, fountain, haiku, import, version, lines }, lines being how
+// → { free, simple, fountain, haiku, import, version, secretReadme, lines }, lines being how
 // many the modes occupy at the top, which is also how many the export drops
 function readModes(src) {
   const on = new Set();
@@ -97,13 +105,23 @@ function readModes(src) {
    * and /fountain untouched, and falls to /version with the rest of
    * them, a page being asked what it is having no room to import into.
    */
+  /* /secret_readme is the second instrument, and ranks with /version
+   * rather than with the rooms: a page asked for the note is a page
+   * being read, not written in, so it turns the rooms off the same way.
+   * Between the two instruments /version wins, for the reason it wins
+   * over everything else — it is the one page you ask for when you
+   * cannot trust what the app is, and an answer to that question should
+   * never arrive wearing something else's decoration.
+   */
   const version = on.has('version');
-  const fountain = !version && on.has('fountain');
-  return { free: !version && on.has('free'),
-           simple: !version && on.has('simple'),
-           fountain, haiku: !version && on.has('haiku') && !fountain,
-           import: !version && on.has('import'),
-           version, lines: n };
+  const secretReadme = !version && on.has('secret_readme');
+  const noRoom = version || secretReadme; // an instrument, not a room
+  const fountain = !noRoom && on.has('fountain');
+  return { free: !noRoom && on.has('free'),
+           simple: !noRoom && on.has('simple'),
+           fountain, haiku: !noRoom && on.has('haiku') && !fountain,
+           import: !noRoom && on.has('import'),
+           version, secretReadme, lines: n };
 }
 
 // Node (a test run, or a future build tool) sees module; the browser
