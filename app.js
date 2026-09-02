@@ -338,7 +338,7 @@ function refresh() {
   // Both of these rewrite the document, so they go last and each starts
   // a fresh refresh() of its own rather than trying to patch this one.
   if (flipped && modes.fountain) seedScript(modes.lines);
-  else if (modes.fountain) tidyFades();
+  else if (modes.fountain) tidyScript(kinds);
 }
 
 /* ---------- the two things that write to the page ---------- */
@@ -350,15 +350,29 @@ function refresh() {
  *
  * Real text, not a placeholder: it saves, it exports, it deletes, and
  * backspace is the only thing you need to know to be rid of it.
+ *
+ * The blank after Contact: is the title page's terminator — Fountain
+ * reads the cover as running from the top until the first empty line —
+ * and the one after that is somewhere to start writing.
+ *
+ * Each key carries the space after its colon, because that is where the
+ * value goes: a writer who taps the end of the Title line should be
+ * typing a title, not typing it up against the punctuation. It is the
+ * same space ftnTitleSpace() puts back on a line that lost it.
  */
-// The blank after Contact: is the title page's terminator — Fountain
-// reads the cover as running from the top until the first empty line —
-// and the one after that is somewhere to start writing.
-const COVER = ['Title:', 'Author:', 'Draft date:', 'Contact:', '', ''];
+const COVER = ['Title: ', 'Author: ', 'Draft date: ', 'Contact: ', '', ''];
 
 /* Seeded on the one keystroke that turns the mode on, and only into a
  * page with nothing under that line. Delete the cover and it stays
  * deleted — the flag doesn't flip twice.
+ *
+ * The caret lands at the foot of it rather than on Title. A cover is
+ * furniture: it is four keys the writer will fill in when the draft has a
+ * name, and dropping the caret into the first of them says the opposite —
+ * that the app is waiting to be told the title before anything can be
+ * written. The blank line under the cover is where the script starts, so
+ * that is where the caret goes, and Title is one tap away for whenever
+ * it's wanted.
  */
 function seedScript(modeLines) {
   const rows = [...editor.children];
@@ -368,15 +382,21 @@ function seedScript(modeLines) {
   commit(); // the cover is one undo step, not seven
   const keep = rows.slice(0, modeLines);
   editor.replaceChildren(...keep, ...COVER.map(makeLine));
-  const first = editor.children[keep.length];
-  if (first) placeCaret(first, plain(first.textContent).length);
+  const last = editor.children[editor.children.length - 1];
+  if (last) placeCaret(last, plain(last.textContent).length);
   refresh();
   commit();
 }
 
-/* FADE IN: is a transition to a screenwriter and plain action to
+/* The two things a script's lines are written for them, and the one rule
+ * both obey.
+ *
+ * FADE IN: is a transition to a screenwriter and plain action to
  * Fountain — it doesn't end in "TO:", which is the only shape the format
- * knows unaided. So the app writes the forcing '>' into the line.
+ * knows unaided. So the app writes the forcing '>' into the line. And a
+ * title page key wants a space after its colon, which is a smaller thing
+ * and the same thing: the line already means it, and the format spells it
+ * out.
  *
  * Into the line, where you can see it. This is a plain-text format and
  * the whole value of one is that the text is the truth: a writer who
@@ -387,16 +407,22 @@ function seedScript(modeLines) {
  * Never on the line the caret is on. A writer mid-word is not asking for
  * help, and rewriting underneath them is how an editor loses their
  * trust — so the line is tidied once they've left it.
+ *
+ * `kinds` is the document's answer from ftnKinds(), already worked out by
+ * refresh(). It is what tells a title page key from a line of dialogue
+ * with a colon in it, which no amount of looking at the line alone would.
  */
 let fixing = false;
 
-function tidyFades() {
+function tidyScript(kinds) {
   if (fixing) return;
   const jobs = [];
-  for (const row of editor.children) {
+  const rows = [...editor.children];
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
     if (row === openLine) continue;
     const src = plain(row.textContent);
-    const out = ftnFade(src);
+    const out = isKind(kinds && kinds[i], 'ftn-title') ? ftnTitleSpace(src) : ftnFade(src);
     if (out !== null && out !== src) jobs.push([row, out]);
   }
   if (!jobs.length) return;
@@ -1502,9 +1528,19 @@ function askForFile() {
 function openFile(file) {
   const highland = /\.highland$/i.test(file.name);
   const script = highland || /\.(fountain|spmd)$/i.test(file.name);
-  // Highland's own additions to Fountain are turned back into Fountain
-  // (see highland.js); nobody else's file is rewritten on the way in
-  const read = text => takeFile(highland ? hlFountain(text) : text, script);
+  /* Two rewrites on the way in, and no others — a poem arrives exactly as
+   * it left wherever it came from.
+   *
+   * Highland's own additions to Fountain are turned back into Fountain
+   * (see highland.js). Then any script, from Highland or not, has its
+   * title page folded onto a line a key (see ftnTitleFold): the key-then-
+   * indented-value shape is real Fountain that this room doesn't read, so
+   * a cover written that way would land as a row of empty keys with the
+   * title itself demoted to action. Highland writes every title page that
+   * way, and it is not alone.
+   */
+  const read = text =>
+    takeFile(script ? ftnTitleFold(highland ? hlFountain(text) : text) : text, script);
 
   const reader = new FileReader();
   reader.onload = () => {
@@ -1547,18 +1583,27 @@ function takeFile(raw, script) {
   setText(head + text);
   refresh();
   editor.focus();
-  // the caret goes to the top of the writing, not the top of the file:
-  // the mode line, where there is one, is scaffolding to write past
-  placeAt(head.length);
+  /* A poem opens at the top of the writing — not the top of the file, the
+   * mode line being scaffolding to write past — because a tanka is short
+   * enough that the top is the whole of it.
+   *
+   * A script opens at its end, which is where the writing stopped. An
+   * import is somebody picking a draft back up: the useful place to be in
+   * ninety pages of screenplay is the last line of it, not the title
+   * page, and a caret parked on the cover of a script you have already
+   * written is a caret in the one place you were not going to type.
+   */
+  placeAt(script ? (head + text).length : head.length);
   openCaretLine();
   commit();                 // and the import is a step of its own to undo
   resetRun();
   save();
-  // placeCaret has scrolled the caret into view, which on a long script
-  // is somewhere near the top already — but the room keeps whatever
-  // scroll the old page left, so say it outright
+  // the room keeps whatever scroll the old page left, so put it where the
+  // caret now is rather than trusting the browser to have moved it: the
+  // top of a poem, and the foot of a script, which on ninety pages is a
+  // long way from where the old draft was sitting
   const room = document.getElementById('room');
-  if (room) room.scrollTop = 0;
+  if (room) room.scrollTop = script ? room.scrollHeight : 0;
 }
 
 // a soft tick where the platform allows it (Android Chrome; iOS Safari

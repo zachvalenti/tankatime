@@ -30,6 +30,14 @@ A quiet room for tanka. WriteRoom inspired full-screen writing with a syllable c
   `@ma` completes the same way `MA` does — the mark isn't part of the name,
   so it's matched past and left where you put it. The price is that there
   is no mixed-case cue here: `@McCLANE` exports as `@MCCLANE`.
+- A script opens on a **title page** — `Title:`, `Author:`, `Draft date:`,
+  `Contact:` — seeded as real text you can type over or delete. Each key
+  carries the space after its colon, and a key that loses one gets it back
+  once you've left the line (`Title:Midnight Snack` becomes
+  `Title: Midnight Snack`), the same way `FADE IN:` is given its `>`. The
+  caret lands under the cover rather than on it: the keys are furniture to
+  fill in when the draft has a name, and the blank line below them is where
+  the script starts.
 - In a script the count in the margin gives way to a **page count** —
   `12.40 pages` — because that is the number a screenplay keeps about
   itself, near enough a minute of screen each, the way syllables are the
@@ -58,7 +66,9 @@ A quiet room for tanka. WriteRoom inspired full-screen writing with a syllable c
   with the page it replaced, so the button says `export` again the moment
   the file lands. The import is one undo step: ⌘Z gives the old page back.
   Like the other modes it rides with them, so `/fountain /import` is a
-  script that can open one.
+  script that can open one. A poem opens at its top; a script opens at its
+  end, where the writing stopped — an import is a draft being picked back
+  up, and the useful place to be in ninety pages is the last line of them.
 - A `.highland` is not a text file: it is a zip archive holding the
   screenplay beside a heap of Highland's own JSON — character counts,
   sidebar widths, an entire base64 copy of the last revision. The import
@@ -67,7 +77,13 @@ A quiet room for tanka. WriteRoom inspired full-screen writing with a syllable c
   addition to Fountain, a note fenced by `%%`, becomes Fountain's own
   boneyard: the research is kept, struck from the script, and out of the
   page count — the same thing said in a way every other Fountain program
-  can read.
+  can read. Its title page is written down the page, the key on one line
+  and the value indented under it; every imported script has that folded
+  back onto one line a key — a `TITLE:` with an indented `Midnight Snack`
+  under it becomes `TITLE: Midnight Snack`, the shape this room reads
+  (`.fountain` files from other apps arrive that way too). Without it
+  a cover arrives as a row of empty keys with the title itself demoted to
+  action — and counted as a page of script.
 - `?` (bottom left) opens a short note on the tanka form and why the
   app exists.
 - `clear` wipes the page — hold it while the color rises for three
