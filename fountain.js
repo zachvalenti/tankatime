@@ -129,6 +129,80 @@ function ftnFade(text) {
   return FTN_FADE.test(t) ? '> ' + t.toUpperCase() : null;
 }
 
+/* ---------- the title page's own tidy ---------- */
+
+/* `Title:Midnight Snack` is a title page line to every Fountain reader
+ * there is, and a typo to every human one. The colon there is a key's
+ * punctuation rather than a word's, and the space after it is what tells
+ * an eye where the key stops — so the app puts it in, the way it puts the
+ * '>' in front of FADE IN:, and for the same reason: it is what the line
+ * meant, written the way the format writes it.
+ *
+ * → the line with its space, or null if it needs none. Called only for
+ * lines ftnKinds() has already called a title, so the colon it finds is a
+ * key's and not a piece of somebody's dialogue, and — like ftnFade —
+ * only for lines the caret has left, so nothing is rewritten under a
+ * writer mid-word.
+ *
+ * A key with nothing after it is left alone: the space would be invisible
+ * and the edit unasked-for. The seeded cover writes its own (see COVER in
+ * app.js), where it is the difference between typing a title and typing
+ * it up against the colon.
+ */
+function ftnTitleSpace(text) {
+  const at = text.indexOf(':');
+  if (at < 0) return null;
+  const rest = text.slice(at + 1);
+  if (!rest.trim() || /^[ \t]/.test(rest)) return null;
+  return text.slice(0, at + 1) + ' ' + rest;
+}
+
+/* A title page written down the page, folded back onto one line a key.
+ *
+ * Fountain lets a key's value sit on the lines beneath it, indented, and
+ * Highland writes every title page that way:
+ *
+ *     TITLE:
+ *         Midnight Snack
+ *
+ * This room reads a title line as a key and its value together, and the
+ * indented line under a bare key is not a title line at all — so a cover
+ * written that way arrives as a row of empty keys with the title itself
+ * demoted to action, and the page count starts counting the cover. The
+ * fold is therefore not a nicety: it is the difference between a title
+ * page and a mess.
+ *
+ * A value spread over several indented lines comes back as one, joined by
+ * spaces. That loses the break in a deliberately two-line title, and it
+ * is the honest trade — there is no shape here that keeps one, so the
+ * choice is a title on one line or a title that isn't a title.
+ *
+ * Only ever the top of the file, and only while what is up there is keys
+ * and their continuations. The first line that is neither ends the fold,
+ * and everything from it down goes through untouched — a script that
+ * opens on a slugline is returned exactly as it came.
+ */
+function ftnTitleFold(text) {
+  const src = text.split('\n');
+  const out = [];
+  let key = -1, i = 0;
+  for (; i < src.length; i++) {
+    const line = src[i];
+    if (!line.trim()) break;                  // the blank line ends the cover
+    const indented = /^[ \t]/.test(line);
+    if (!indented && FTN_TITLE.test(line)) {
+      out.push(line);
+      key = out.length - 1;
+      continue;
+    }
+    // an indented line under a key is that key's value; anything else is
+    // not the title page, and neither it nor what follows is ours to touch
+    if (key < 0 || !indented) break;
+    out[key] = out[key].replace(/[ \t]+$/, '') + ' ' + line.trim();
+  }
+  return key < 0 ? text : out.concat(src.slice(i)).join('\n');
+}
+
 /* The kinds a line can be. Held here rather than spelled out at each
  * call so the class names and the prefix widths stay in one place.
  */
@@ -634,5 +708,6 @@ function ftnText(src, start) {
 // doesn't and skips this
 if (typeof module !== 'undefined') {
   module.exports = { ftnKinds, ftnRuns, ftnText, ftnNames, ftnDual, ftnFade, ftnPages,
+                     ftnTitleSpace, ftnTitleFold,
                      cueName, isKind, FTN_CLASSES, FTN_CAPS, FTN_DUAL_CLS, isShout };
 }
